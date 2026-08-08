@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Spinbox · Vinyl Now playing prototype</title>
+  <style>
+    /* ============================================================
+       PROTOTYPE — throwaway. Not production. Not Remix.
+       Question: What should Spinbox's Now playing feel like if it
+       keeps Jeet Nirnejak's vinyl spirit (edge-swap on track change,
+       no album "sides") as a v1 centerpiece?
+       Variants via ?variant=A|B|C — floating bar + ←/→
+       ============================================================ */
+    :root {
+      --ink: #0c0a09;
+      --paper: #f5f0e8;
+      --cream: #ebe4d6;
+      --muted: #8a8074;
+      --accent: #c45c26;
+      --accent-soft: #e8a06a;
+      --groove: #1a1614;
+      --label-bg: #d4a574;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-swap: cubic-bezier(0.65, 0, 0.35, 1);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--ink);
+      color: var(--paper);
+      overflow-x: hidden;
+      min-height: 100dvh;
+    }
+    body::before {
+      content: "PROTOTYPE · throwaway · not Remix · not production";
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(245, 240, 232, 0.35);
+      pointer-events: none;
+    }
+
+    /* —— shared vinyl —— */
+    .vinyl-stage {
+      perspective: 1200px;
+      display: grid;
+      place-items: center;
+    }
+    .vinyl {
+      position: relative;
+      width: min(52vmin, 340px);
+      aspect-ratio: 1;
+      transform-style: preserve-3d;
+      transition: transform 0.85s var(--ease-swap);
+    }
+    .vinyl.is-spinning .platter {
+      animation: spin 3.2s linear infinite;
+    }
+    .vinyl.is-edge {
+      transform: rotateY(90deg);
+    }
+    .platter {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 50%,
+          transparent 14%,
+          rgba(255,255,255,0.04) 14.5%,
+          transparent 15%),
+        repeating-radial-gradient(circle at 50% 50%,
+          var(--groove) 0,
+          var(--groove) 1.5px,
+          #221e1b 1.5px,
+          #221e1b 3px);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        inset 0 0 40px rgba(0,0,0,0.5),
+        var(--shadow);
+    }
+    .platter::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: linear-gradient(
+        125deg,
+        rgba(255,255,255,0.12) 0%,
+        transparent 35%,
+        transparent 60%,
+        rgba(255,255,255,0.05) 100%
+      );
+      pointer-events: none;
+    }
+    .label {
+      position: absolute;
+      inset: 32%;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 35% 30%, rgba(255,255,255,0.25), transparent 45%),
+        var(--label-color, var(--label-bg));
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 8%;
+      box-shadow: inset 0 0 0 2px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.3);
+      transition: background-color 0.2s ease;
+    }
+    .label-inner {
+      font-size: clamp(9px, 2.1vmin, 12px);
+      line-height: 1.25;
+      color: rgba(0,0,0,0.78);
+      font-weight: 600;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    .label-inner .artist {
+      display: block;
+      font-weight: 500;
+      opacity: 0.7;
+      font-size: 0.9em;
+      margin-top: 0.2em;
+    }
+    .spindle {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 8%;
+      height: 8%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #ddd 0%, #666 55%, #222 100%);
+      z-index: 2;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* —— transport shared bits —— */
+    .transport {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      border-radius: 999px;
+      transition: background 0.15s, transform 0.1s, color 0.15s;
+    }
+    .btn:active { transform: scale(0.94); }
+    .btn-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      color: var(--paper);
+      opacity: 0.85;
+    }
+    .btn-icon:hover { background: rgba(255,255,255,0.08); opacity: 1; }
+    .btn-play {
+      width: 56px;
+      height: 56px;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .btn-play:hover { background: #fff; }
+    .progress-wrap {
+      width: 100%;
+      display: grid;
+      gap: 0.35rem;
+    }
+    .progress {
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.12);
+      outline: none;
+      cursor: pointer;
+    }
+    .progress::-webkit-slider-thumb {
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--paper);
+      box-shadow: 0 0 0 3px rgba(245,240,232,0.15);
+    }
+    .times {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .meta-title {
+      font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    .meta-artist {
+      color: var(--muted);
+      margin-top: 0.25rem;
+      font-size: 0.95rem;
+    }
+    .meta-album {
+      color: var(--muted);
+      opacity: 0.7;
+      font-size: 0.8rem;
+      margin-top: 0.15rem;
+    }
+
+    /* —— prototype switcher —— */
+    .proto-bar {
+      position: fixed;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      background: #fff;
+      color: #111;
+      border-radius: 999px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.08);
+      font-size: 13px;
+      font-weight: 600;
+      user-select: none;
+    }
+    .proto-bar button {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 50%;
+      background: #f0f0f0;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .proto-bar button:hover { background: #e2e2e2; }
+    .proto-bar .label {
+      all: unset;
+      min-width: 11rem;
+      text-align: center;
+      padding: 0 0.4rem;
+    }
+    .proto-bar .sub {
+      display: block;
+      font-size: 10px;
+      font-weight: 500;
+      color: #666;
+      margin-top: 1px;
+    }
+
+    /* —— state dump (prototype surface) —— */
+    .state-dump {
+      position: fixed;
+      top: 32px;
+      right: 12px;
+      z-index: 90;
+      max-width: 220px;
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 10px;
+      line-height: 1.4;
+      color: rgba(245,240,232,0.55);
+      background: rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      pointer-events: none;
+      white-space: pre-wrap;
+    }
+    @media (max-width: 640px) {
+      .state-dump { display: none; }
+    }
+
+    /* ============================================================
+       VARIANT A — Classic deck
+       Platter left, tonearm hint, metadata + transport right.
+       Closest to a physical turntable + Jeet spirit.
+       ============================================================ */
+    #variant-A {
+      min-height: 100dvh;
+      display: none;
+      background:
+        radial-gradient(ellipse 80% 60% at 30% 45%, #2a221c 0%, transparent 55%),
+        linear-gradient(165deg, #1a1512 0%, #0c0a09 50%, #120e0c 100%);
+      padding: 3rem 1.5rem 6rem;
+    }
+    #variant-A.active { display: grid; place-items: center; }
+    .a-shell {
+      width: min(920px, 100%);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.5rem;
+      align-items: center;
+    }
+    @media (max-width: 720px) {
+      .a-shell { grid-template-columns: 1fr; gap: 1.75rem; text-align: center; }
+      .a-meta .transport { justify-content: center; }
+    }
+    .a-plinth {
+      position: relative;
+      background: linear-gradient(145deg, #2c241e, #1a1512);
+      border-radius: 18px;
+      padding: 2rem;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 20px 60px rgba(0,0,0,0.4);
+    }
+    .a-plinth .tonearm {
+      position: absolute;
+      right: 12%;
+      top: 18%;
+      width: 4px;
+      height: 38%;
+      background: linear-gradient(#c8c4bc, #8a8680);
+      border-radius: 2px;
+      transform-origin: top center;
+      transform: rotate(18deg);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      opacity: 0.85;
+      transition: transform 0.5s var(--ease-out);
+    }
+    .a-plinth.is-paused .tonearm {
+      transform: rotate(-8deg);
+    }
+    .a-plinth .tonearm::before {
+      content: "";
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #b0aaa2;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    .a-plinth .tonearm::after {
+      content: "";
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 10px;
+      height: 14px;
+      background: #6a6660;
+      border-radius: 2px;
+    }
+    .a-meta h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; }
+    .a-meta .queue-hint {
+      margin-top: 1.5rem;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .a-meta .queue-next {
+      margin-top: 0.35rem;
+      font-size: 0.9rem;
+      color: var(--paper);
+      opacity: 0.75;
+    }
+    .a-meta .transport { margin-top: 1.25rem; }
+    .a-meta .progress-wrap { margin-top: 1.25rem; }
+
+    /* ============================================================
+       VARIANT B — Center stage
+       Huge vinyl, almost no chrome. Transport as floating pill.
+       Phone-friendly full-bleed mood.
+       ============================================================ */
+    #variant-B {
+      min-height: 100dvh;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 3rem 1.25rem 7rem;
+      background:
+        radial-gradient(circle at 50% 40%, #3a2818 0%, transparent 50%),
+        #080706;
+    }
+    #variant-B.active { display: flex; }
+    #variant-B .vinyl {
+      width: min(72vmin, 420px);
+    }
+    .b-meta {
+      text-align: center;
+      max-width: 28rem;
+    }
+    .b-meta h1 {
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      font-size: clamp(1.5rem, 5vw, 2.25rem);
+    }
+    .b-meta .meta-artist {
+      font-size: 1.05rem;
+      margin-top: 0.4rem;
+    }
+    .b-dock {
+      position: fixed;
+      left: 50%;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      width: min(420px, calc(100% - 2rem));
+      background: rgba(20, 16, 14, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      padding: 0.65rem 1.1rem 0.75rem;
+      display: grid;
+      gap: 0.5rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .b-dock .transport { justify-content: center; gap: 1rem; }
+    .b-dock .progress { height: 3px; }
+    .b-dock .times { font-size: 10px; padding: 0 0.25rem; }
+
+    /* ============================================================
+       VARIANT C — Phone stack (couch-first)
+       Vertical mobile layout: vinyl hero top, scrubber, big hit
+       targets, up-next strip. Designed for one-thumb use.
+       ============================================================ */
+    #variant-C {
+      min-height: 100dvh;
+      display: none;
+      background: #12100e;
+      padding: 2.5rem 0 6.5rem;
+    }
+    #variant-C.active { display: block; }
+    .c-phone {
+      max-width: 390px;
+      margin: 0 auto;
+      min-height: calc(100dvh - 9rem);
+      background: linear-gradient(180deg, #1c1814 0%, #0e0c0b 100%);
+      border-radius: 28px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+      padding: 1.25rem 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+    .c-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .c-top .live {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--accent-soft);
+    }
+    .c-top .live::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .c-vinyl-wrap {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      min-height: 240px;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(196,92,38,0.12), transparent 60%);
+      border-radius: 16px;
+    }
+    #variant-C .vinyl { width: min(58vw, 260px); }
+    .c-meta h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    .c-transport {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.25rem 0.5rem;
+    }
+    .c-transport .btn-play {
+      width: 64px;
+      height: 64px;
+      background: var(--accent);
+      color: #fff;
+    }
+    .c-transport .btn-icon {
+      width: 48px;
+      height: 48px;
+    }
+    .c-upnext {
+      margin-top: auto;
+      background: rgba(255,255,255,0.04);
+      border-radius: 14px;
+      padding: 0.75rem 0.9rem;
+    }
+    .c-upnext h2 {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.45rem;
+    }
+    .c-upnext .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .c-upnext .row span:last-child {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.8rem;
+    }
+
+    /* SVG icons inline via currentColor */
+    .icon {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+      stroke: currentColor;
+      stroke-width: 0;
+    }
+    .icon-lg { width: 26px; height: 26px; }
+    .icon-stroke {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Plan: Three variants of Spinbox Now playing (vinyl centerpiece),
+    switchable via ?variant=A|B|C, static HTML (no app scaffold yet).
+    A = Classic deck · B = Center stage · C = Phone stack
+  -->
+
+  <pre class="state-dump" id="stateDump" aria-hidden="true"></pre>
+
+  <!-- ========== VARIANT A ========== -->
+  <section id="variant-A" aria-label="Variant A Classic deck">
+    <div class="a-shell">
+      <div class="a-plinth" id="aPlinth">
+        <div class="tonearm" aria-hidden="true"></div>
+        <div class="vinyl-stage">
+          <div class="vinyl is-spinning" data-vinyl>
+            <div class="platter">
+              <div class="label" data-label>
+                <div class="label-inner">
+                  <span data-label-title>Midnight Oil</span>
+                  <span class="artist" data-label-artist>Luna Park</span>
+                </div>
+              </div>
+              <div class="spindle"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="a-meta">
+        <p class="meta-album" data-album>Neon Harbor · 2019</p>
+        <h1 class="meta-title" data-title>Midnight Oil</h1>
+        <p class="meta-artist" data-artist>Luna Park</p>
+        <div class="progress-wrap">
+          <input class="progress" type="range" min="0" max="1000" value="0" data-seek aria-label="Seek" />
+          <div class="times"><span data-elapsed>0:00</span><span data-duration>3:42</span></div>
+        </div>
+        <div class="transport" data-transport>
+          <button type="button" class="btn btn-icon" data-action="shuffle" aria-label="Shuffle" title="Shuffle">
+            <svg class="icon icon-stroke" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+          </button>
+          <button type="button" class="btn btn-icon" data-action="prev" aria-label="Previous">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M6 5v14H4V5h2zm2 7 12 7V5L8 12z"/></svg>
+          </button>
+          <button type="button" class="btn btn-play" data-action="play" aria-label="Play/Pause">
+            <svg class="icon icon-lg" data-play-icon viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button type="button" class="btn btn-icon" data-action="next" aria-label="Next">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 5v14h2V5h-2zM4 5v14l12-7L4 5z"/></svg>
+          </button>
+          <button type="button" class="btn btn-icon" data-action="repeat" aria-label="Repeat" title="Repeat">
+            <svg class="icon icon-stroke" viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </button>
+        </div>
+        <p class="queue-hint">Up next</p>
+        <p class="queue-next" data-upnext>Harbor Lights · Luna Park</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VARIANT B ========== -->
+  <section id="variant-B" aria-label="Variant B Center stage">
+    <div class="vinyl-stage">
+      <div class="vinyl is-spinning" data-vinyl>
+        <div class="platter">
+          <div class="label" data-label>
+            <div class="label-inner">
+              <span data-label-title>Midnight Oil</span>
+              <span class="artist" data-label-artist>Luna Park</span>
+            </div>
+          </div>
+          <div class="spindle"></div>
+        </div>
+      </div>
+    </div>
+    <div class="b-meta">
+      <h1 class="meta-title" data-title>Midnight Oil</h1>
+      <p class="meta-artist" data-artist>Luna Park</p>
+      <p class="meta-album" data-album>Neon Harbor · 2019</p>
+    </div>
+    <div class="b-dock">
+      <div class="progress-wrap">
+        <input class="progress" type="range" min="0" max="1000" value="0" data-seek aria-label="Seek" />
+        <div class="times"><span data-elapsed>0:00</span><span data-duration>3:42</span></div>
+      </div>
+      <div class="transport" data-transport>
+        <button type="button" class="btn btn-icon" data-action="prev" aria-label="Previous">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M6 5v14H4V5h2zm2 7 12 7V5L8 12z"/></svg>
+        </button>
+        <button type="button" class="btn btn-play" data-action="play" aria-label="Play/Pause">
+          <svg class="icon icon-lg" data-play-icon viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon" data-action="next" aria-label="Next">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 5v14h2V5h-2zM4 5v14l12-7L4 5z"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VARIANT C ========== -->
+  <section id="variant-C" aria-label="Variant C Phone stack">
+    <div class="c-phone">
+      <div class="c-top">
+        <span>Now playing</span>
+        <span class="live" data-live>Playing</span>
+      </div>
+      <div class="c-vinyl-wrap">
+        <div class="vinyl-stage">
+          <div class="vinyl is-spinning" data-vinyl>
+            <div class="platter">
+              <div class="label" data-label>
+                <div class="label-inner">
+                  <span data-label-title>Midnight Oil</span>
+                  <span class="artist" data-label-artist>Luna Park</span>
+                </div>
+              </div>
+              <div class="spindle"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="c-meta">
+        <h1 class="meta-title" data-title>Midnight Oil</h1>
+        <p class="meta-artist" data-artist>Luna Park</p>
+        <p class="meta-album" data-album>Neon Harbor · 2019</p>
+      </div>
+      <div class="progress-wrap">
+        <input class="progress" type="range" min="0" max="1000" value="0" data-seek aria-label="Seek" />
+        <div class="times"><span data-elapsed>0:00</span><span data-duration>3:42</span></div>
+      </div>
+      <div class="c-transport transport" data-transport>
+        <button type="button" class="btn btn-icon" data-action="shuffle" aria-label="Shuffle">
+          <svg class="icon icon-stroke" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon" data-action="prev" aria-label="Previous">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M6 5v14H4V5h2zm2 7 12 7V5L8 12z"/></svg>
+        </button>
+        <button type="button" class="btn btn-play" data-action="play" aria-label="Play/Pause">
+          <svg class="icon icon-lg" data-play-icon viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon" data-action="next" aria-label="Next">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 5v14h2V5h-2zM4 5v14l12-7L4 5z"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon" data-action="repeat" aria-label="Repeat">
+          <svg class="icon icon-stroke" viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        </button>
+      </div>
+      <div class="c-upnext">
+        <h2>Up next</h2>
+        <div class="row">
+          <span data-upnext>Harbor Lights · Luna Park</span>
+          <span data-upnext-dur>4:05</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="proto-bar" aria-label="Prototype variant switcher">
+    <button type="button" id="prevVariant" aria-label="Previous variant">←</button>
+    <div class="label" id="variantLabel">A — Classic deck<span class="sub">?variant=A</span></div>
+    <button type="button" id="nextVariant" aria-label="Next variant">→</button>
+  </nav>
+
+  <script>
+    // —— mock library (no audio; timer simulates progress) ——
+    const TRACKS = [
+      { title: "Midnight Oil", artist: "Luna Park", album: "Neon Harbor", year: 2019, duration: 222, color: "#d4a574" },
+      { title: "Harbor Lights", artist: "Luna Park", album: "Neon Harbor", year: 2019, duration: 245, color: "#7a9eb8" },
+      { title: "Static Bloom", artist: "Cedar Static", album: "Afterimage", year: 2021, duration: 198, color: "#c47a8a" },
+      { title: "Low Tide Tape", artist: "Cedar Static", album: "Afterimage", year: 2021, duration: 267, color: "#8a9a6a" },
+      { title: "Kitchen Radio", artist: "The Soft Numbers", album: "Weeknight", year: 2017, duration: 183, color: "#b8956a" },
+    ];
+
+    const VARIANTS = [
+      { key: "A", name: "Classic deck" },
+      { key: "B", name: "Center stage" },
+      { key: "C", name: "Phone stack" },
+    ];
+
+    const ICON_PLAY = '<path d="M8 5v14l11-7z"/>';
+    const ICON_PAUSE = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+
+    const state = {
+      variant: "A",
+      index: 0,
+      playing: true,
+      position: 0, // seconds
+      shuffle: false,
+      repeat: "off", // off | all | one
+      swapping: false,
+    };
+
+    function fmt(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + ":" + String(s).padStart(2, "0");
+    }
+
+    function track() { return TRACKS[state.index]; }
+    function nextIndex() {
+      if (state.repeat === "one") return state.index;
+      if (state.shuffle) {
+        let i = state.index;
+        while (TRACKS.length > 1 && i === state.index) {
+          i = Math.floor(Math.random() * TRACKS.length);
+        }
+        return i;
+      }
+      const n = state.index + 1;
+      if (n >= TRACKS.length) return state.repeat === "all" ? 0 : state.index;
+      return n;
+    }
+    function prevIndex() {
+      if (state.position > 3) return state.index; // restart current
+      return (state.index - 1 + TRACKS.length) % TRACKS.length;
+    }
+    function upNextTrack() {
+      const ni = nextIndex();
+      if (ni === state.index && state.repeat !== "one") {
+        // end of queue without repeat
+        const peek = (state.index + 1) % TRACKS.length;
+        return TRACKS[peek];
+      }
+      return TRACKS[ni === state.index ? (state.index + 1) % TRACKS.length : ni];
+    }
+
+    function setVariant(key) {
+      state.variant = key;
+      const url = new URL(location.href);
+      url.searchParams.set("variant", key);
+      history.replaceState(null, "", url);
+      VARIANTS.forEach((v) => {
+        document.getElementById("variant-" + v.key).classList.toggle("active", v.key === key);
+      });
+      const meta = VARIANTS.find((v) => v.key === key);
+      document.getElementById("variantLabel").innerHTML =
+        key + " — " + meta.name + '<span class="sub">?variant=' + key + "</span>";
+      render();
+    }
+
+    function cycleVariant(dir) {
+      const i = VARIANTS.findIndex((v) => v.key === state.variant);
+      const next = VARIANTS[(i + dir + VARIANTS.length) % VARIANTS.length];
+      setVariant(next.key);
+    }
+
+    function render() {
+      const t = track();
+      const up = upNextTrack();
+      const root = document.getElementById("variant-" + state.variant);
+      if (!root) return;
+
+      root.querySelectorAll("[data-title]").forEach((el) => (el.textContent = t.title));
+      root.querySelectorAll("[data-artist]").forEach((el) => (el.textContent = t.artist));
+      root.querySelectorAll("[data-album]").forEach((el) => (el.textContent = t.album + " · " + t.year));
+      root.querySelectorAll("[data-label-title]").forEach((el) => (el.textContent = t.title));
+      root.querySelectorAll("[data-label-artist]").forEach((el) => (el.textContent = t.artist));
+      root.querySelectorAll("[data-label]").forEach((el) => {
+        el.style.setProperty("--label-color", t.color);
+      });
+      root.querySelectorAll("[data-duration]").forEach((el) => (el.textContent = fmt(t.duration)));
+      root.querySelectorAll("[data-elapsed]").forEach((el) => (el.textContent = fmt(state.position)));
+      root.querySelectorAll("[data-seek]").forEach((el) => {
+        el.max = t.duration * 10;
+        el.value = state.position * 10;
+      });
+      root.querySelectorAll("[data-upnext]").forEach((el) => {
+        el.textContent = up.title + " · " + up.artist;
+      });
+      root.querySelectorAll("[data-upnext-dur]").forEach((el) => (el.textContent = fmt(up.duration)));
+      root.querySelectorAll("[data-live]").forEach((el) => {
+        el.textContent = state.playing ? "Playing" : "Paused";
+      });
+
+      root.querySelectorAll("[data-vinyl]").forEach((vinyl) => {
+        vinyl.classList.toggle("is-spinning", state.playing && !state.swapping);
+      });
+
+      const aPlinth = document.getElementById("aPlinth");
+      if (aPlinth) aPlinth.classList.toggle("is-paused", !state.playing);
+
+      root.querySelectorAll("[data-play-icon]").forEach((svg) => {
+        svg.innerHTML = state.playing ? ICON_PAUSE : ICON_PLAY;
+      });
+
+      // surface full state (prototype rule #5)
+      document.getElementById("stateDump").textContent = JSON.stringify(
+        {
+          variant: state.variant,
+          track: t.title,
+          artist: t.artist,
+          index: state.index,
+          playing: state.playing,
+          position: Math.floor(state.position) + "s",
+          swapping: state.swapping,
+          shuffle: state.shuffle,
+          repeat: state.repeat,
+          upNext: up.title,
+        },
+        null,
+        2
+      );
+    }
+
+    /**
+     * Edge-swap: record rotates to edge-on (invisible face),
+     * track identity updates while hidden, then rotates back.
+     * Spirit of Jeet's demo — per track, not album sides.
+     */
+    function changeTrack(toIndex) {
+      if (state.swapping || toIndex === state.index) {
+        if (toIndex === state.index) {
+          state.position = 0;
+          render();
+        }
+        return;
+      }
+      state.swapping = true;
+      const roots = document.querySelectorAll(".vinyl");
+      roots.forEach((v) => {
+        v.classList.add("is-edge");
+        v.classList.remove("is-spinning");
+      });
+      render();
+
+      window.setTimeout(() => {
+        state.index = toIndex;
+        state.position = 0;
+        render();
+        window.setTimeout(() => {
+          roots.forEach((v) => v.classList.remove("is-edge"));
+          state.swapping = false;
+          if (state.playing) {
+            roots.forEach((v) => v.classList.add("is-spinning"));
+          }
+          render();
+        }, 420);
+      }, 420);
+    }
+
+    function onAction(action) {
+      if (action === "play") {
+        state.playing = !state.playing;
+        render();
+        return;
+      }
+      if (action === "next") {
+        const ni = nextIndex();
+        if (ni === state.index && state.repeat !== "one") {
+          // stuck at end
+          state.playing = false;
+          state.position = track().duration;
+          render();
+          return;
+        }
+        // for "repeat one", next still advances unless we want restart —
+        // product lean: next always advances to following track
+        let target = state.index + 1;
+        if (state.shuffle) target = nextIndex();
+        else if (target >= TRACKS.length) target = state.repeat === "all" ? 0 : state.index;
+        if (target !== state.index) changeTrack(target);
+        else {
+          state.position = 0;
+          render();
+        }
+        return;
+      }
+      if (action === "prev") {
+        if (state.position > 3) {
+          state.position = 0;
+          render();
+        } else {
+          changeTrack(prevIndex());
+        }
+        return;
+      }
+      if (action === "shuffle") {
+        state.shuffle = !state.shuffle;
+        render();
+        return;
+      }
+      if (action === "repeat") {
+        state.repeat = state.repeat === "off" ? "all" : state.repeat === "all" ? "one" : "off";
+        render();
+        return;
+      }
+    }
+
+    // wire controls (event delegation per variant + global)
+    document.body.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      onAction(btn.getAttribute("data-action"));
+    });
+    document.body.addEventListener("input", (e) => {
+      if (!e.target.matches("[data-seek]")) return;
+      state.position = Number(e.target.value) / 10;
+      render();
+    });
+
+    document.getElementById("prevVariant").addEventListener("click", () => cycleVariant(-1));
+    document.getElementById("nextVariant").addEventListener("click", () => cycleVariant(1));
+
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); cycleVariant(-1); }
+      if (e.key === "ArrowRight") { e.preventDefault(); cycleVariant(1); }
+      if (e.key === " ") { e.preventDefault(); onAction("play"); }
+      if (e.key === "n" || e.key === "N") onAction("next");
+      if (e.key === "p" || e.key === "P") onAction("prev");
+    });
+
+    // fake playback clock
+    window.setInterval(() => {
+      if (!state.playing || state.swapping) return;
+      const t = track();
+      state.position += 0.25;
+      if (state.position >= t.duration) {
+        if (state.repeat === "one") {
+          state.position = 0;
+        } else {
+          const ni = state.shuffle
+            ? nextIndex()
+            : (state.index + 1 < TRACKS.length ? state.index + 1 : (state.repeat === "all" ? 0 : -1));
+          if (ni === -1) {
+            state.playing = false;
+            state.position = t.duration;
+          } else if (ni !== state.index) {
+            changeTrack(ni);
+            return;
+          }
+        }
+      }
+      render();
+    }, 250);
+
+    // boot
+    const params = new URLSearchParams(location.search);
+    const initial = (params.get("variant") || "A").toUpperCase();
+    setVariant(VARIANTS.some((v) => v.key === initial) ? initial : "A");
+  </script>
+</body>
+</html>
