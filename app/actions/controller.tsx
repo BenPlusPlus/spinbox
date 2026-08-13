@@ -33,10 +33,23 @@ import { publicOrigin, type AppConfig } from '../modules/config/index.ts'
 import {
   getScanStatus,
   LibraryError,
+  listTracks,
   startScan,
   type ScanAdapter,
 } from '../modules/library/index.ts'
 import { serveTrack } from '../modules/media/index.ts'
+import {
+  addToQueue,
+  continueListening,
+  getListeningSession,
+  getListenResume,
+  listRecentlyPlayed,
+  playIntoSession,
+  playNext,
+  PlaybackError,
+  updateListeningSession,
+  type RepeatMode,
+} from '../modules/playback/index.ts'
 import { routes } from '../routes.ts'
 import { InvitesPage } from '../ui/invites-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
@@ -64,10 +77,27 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
         middleware: [requireSignedIn(config, database)],
         handler(context) {
           let member = signedInOrThrow(context)
-          return (
-            passwordChangeRedirect(config, member) ??
-            context.render(<LibraryHomePage member={member} />)
+          let forced = passwordChangeRedirect(config, member)
+          if (forced) {
+            return forced
+          }
+          let error = context.get(Session).get('error')
+          return context.render(
+            <LibraryHomePage
+              member={member}
+              session={getListeningSession(database, member)}
+              tracks={listTracks(database)}
+              recentlyPlayed={listRecentlyPlayed(database, member)}
+              resume={getListenResume(database, member)}
+              error={typeof error === 'string' ? error : undefined}
+            />,
           )
+        },
+      },
+      session: {
+        middleware: [requireSignedIn(config, database)],
+        handler(context) {
+          return runSessionMutation(context, config, database)
         },
       },
       logout(context) {
@@ -447,6 +477,77 @@ function requireSignedIn(config: AppConfig, database: AppDatabase) {
       return guestRedirect(config, database)
     },
   })
+}
+
+function runSessionMutation(
+  context: { get: (key: any) => any },
+  config: AppConfig,
+  database: AppDatabase,
+) {
+  let member = signedInOrThrow(context)
+  let forced = passwordChangeRedirect(config, member)
+  if (forced) {
+    return forced
+  }
+
+  let formData = context.get(FormData)
+  let intent = String(formData.get('intent') ?? '')
+
+  try {
+    if (intent === 'play') {
+      let trackIds = formData
+        .getAll('trackId')
+        .map((value: FormDataEntryValue) => String(value))
+        .filter(Boolean)
+      let startAtRaw = String(formData.get('startAt') ?? '')
+      let startAt = startAtRaw === '' ? 0 : Number.parseInt(startAtRaw, 10)
+      playIntoSession(database, member, { trackIds, startAt })
+    } else if (intent === 'play-next') {
+      playNext(database, member, String(formData.get('trackId') ?? ''))
+    } else if (intent === 'add-to-queue') {
+      addToQueue(database, member, String(formData.get('trackId') ?? ''))
+    } else if (intent === 'update') {
+      updateListeningSession(database, member, parseSessionPatch(formData))
+    } else if (intent === 'continue') {
+      continueListening(database, member)
+    } else {
+      context.get(Session).flash('error', 'That Listening session action is not available')
+    }
+  } catch (error) {
+    if (error instanceof PlaybackError) {
+      context.get(Session).flash('error', error.message)
+      return publicRedirect(config, routes.home.href())
+    }
+    throw error
+  }
+
+  return publicRedirect(config, routes.home.href())
+}
+
+function parseSessionPatch(formData: FormData) {
+  let patch: {
+    playheadMs?: number
+    playing?: boolean
+    shuffle?: boolean
+    repeat?: RepeatMode
+  } = {}
+
+  if (formData.has('playheadMs')) {
+    patch.playheadMs = Number.parseInt(String(formData.get('playheadMs') ?? '0'), 10) || 0
+  }
+  if (formData.has('playing')) {
+    patch.playing = formData.get('playing') === '1' || formData.get('playing') === 'true'
+  }
+  if (formData.has('shuffle')) {
+    patch.shuffle = formData.get('shuffle') === '1' || formData.get('shuffle') === 'true'
+  }
+  if (formData.has('repeat')) {
+    let repeat = String(formData.get('repeat') ?? '')
+    if (repeat === 'off' || repeat === 'all' || repeat === 'one') {
+      patch.repeat = repeat
+    }
+  }
+  return patch
 }
 
 async function runMemberMutation(
