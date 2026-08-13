@@ -48,11 +48,15 @@ export function LibraryHomePage(handle: Handle<{ member: HouseholdMember }>) {
             Welcome, {greeting}. This is a stub Library home. Browse and playback land in later
             slices.
           </p>
-          {member.role === 'admin' ? (
-            <p mix={copy}>
-              <a href={routes.invites.index.href()}>Invites</a>
-            </p>
-          ) : null}
+          <p mix={copy}>
+            <a href={routes.settings.index.href()}>Settings</a>
+            {member.role === 'admin' ? (
+              <>
+                {' · '}
+                <a href={routes.invites.index.href()}>Invites</a>
+              </>
+            ) : null}
+          </p>
           <form method="POST" action={routes.logout.href()}>
             <button mix={signOut} type="submit">
               Sign out

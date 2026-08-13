@@ -7,17 +7,26 @@ import { assetServer } from '../assets.ts'
 import type { AppDatabase } from '../data/index.ts'
 import {
   AuthError,
+  changeOwnPassword,
   createFirstAdmin,
   createMemberPasswordProvider,
+  demoteMember,
+  disableMember,
+  enableMember,
   findInviteByToken,
+  hardDeleteMember,
   householdHasMembers,
   listInvites,
+  listMembers,
   mintInvite,
+  promoteMember,
   publicRedirect,
   redeemInvite,
   revokeInvite,
+  setTemporaryPassword,
   signInMember,
   signOutMember,
+  updateOwnDisplayName,
   type HouseholdMember,
 } from '../modules/auth/index.ts'
 import { publicOrigin, type AppConfig } from '../modules/config/index.ts'
@@ -26,6 +35,7 @@ import { InvitesPage } from '../ui/invites-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
 import { LibraryHomePage } from '../ui/library-home-page.tsx'
 import { LoginPage } from '../ui/login-page.tsx'
+import { SettingsPage } from '../ui/settings-page.tsx'
 import { SetupPage } from '../ui/setup-page.tsx'
 
 type AppDeps = {
@@ -43,24 +53,70 @@ export function createRootController({ config, database }: AppDeps) {
         )
       },
       home: {
-        middleware: [
-          requireAuth<HouseholdMember>({
-            onFailure() {
-              return guestRedirect(config, database)
-            },
-          }),
-        ],
+        middleware: [requireSignedIn(config, database)],
         handler(context) {
-          let member = context.auth
-          if (!member.ok) {
-            throw new Error('requireAuth should have resolved a Household member')
-          }
-          return context.render(<LibraryHomePage member={member.identity} />)
+          let member = signedInOrThrow(context)
+          return (
+            passwordChangeRedirect(config, member) ??
+            context.render(<LibraryHomePage member={member} />)
+          )
         },
       },
       logout(context) {
         signOutMember(context.get(Session))
         return guestRedirect(config, database)
+      },
+      memberPromote: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return runMemberMutation(context, config, database, (actor, id) =>
+            promoteMember(database, actor, id),
+          )
+        },
+      },
+      memberDemote: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return runMemberMutation(context, config, database, (actor, id) =>
+            demoteMember(database, actor, id),
+          )
+        },
+      },
+      memberDisable: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return runMemberMutation(context, config, database, async (actor, id) => {
+            await disableMember(database, actor, id)
+            return { signOutIfSelf: true }
+          })
+        },
+      },
+      memberEnable: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return runMemberMutation(context, config, database, (actor, id) =>
+            enableMember(database, actor, id),
+          )
+        },
+      },
+      memberHardDelete: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return runMemberMutation(context, config, database, async (actor, id) => {
+            await hardDeleteMember(database, actor, id)
+            return { signOutIfSelf: true }
+          })
+        },
+      },
+      memberTemporaryPassword: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return runMemberMutation(context, config, database, (actor, id, formData) =>
+            setTemporaryPassword(database, actor, id, {
+              password: String(formData.get('password') ?? ''),
+            }),
+          )
+        },
       },
       inviteRevoke: {
         middleware: [
@@ -74,6 +130,10 @@ export function createRootController({ config, database }: AppDeps) {
           let member = signedInOrThrow(context)
           if (member.role !== 'admin') {
             return publicRedirect(config, routes.home.href())
+          }
+          let forced = passwordChangeRedirect(config, member)
+          if (forced) {
+            return forced
           }
 
           try {
@@ -108,6 +168,10 @@ export function createInvitesController({ config, database }: AppDeps) {
         if (member.role !== 'admin') {
           return publicRedirect(config, routes.home.href())
         }
+        let forced = passwordChangeRedirect(config, member)
+        if (forced) {
+          return forced
+        }
 
         let session = context.get(Session)
         let mintedUrl = session.get('mintedInviteUrl')
@@ -125,6 +189,10 @@ export function createInvitesController({ config, database }: AppDeps) {
         let member = signedInOrThrow(context)
         if (member.role !== 'admin') {
           return publicRedirect(config, routes.home.href())
+        }
+        let forced = passwordChangeRedirect(config, member)
+        if (forced) {
+          return forced
         }
 
         let formData = context.get(FormData)
@@ -255,10 +323,121 @@ export function createLoginController({ config, database, passwordProvider }: Ap
         }
 
         signInMember(context, member)
-        return publicRedirect(config, routes.home.href())
+        return passwordChangeRedirect(config, member) ?? publicRedirect(config, routes.home.href())
       },
     },
   })
+}
+
+export function createSettingsController({ config, database }: AppDeps) {
+  return createController(routes.settings, {
+    middleware: [requireSignedIn(config, database)],
+    actions: {
+      async index(context) {
+        let member = signedInOrThrow(context)
+        let session = context.get(Session)
+        let error = session.get('error')
+        let notice = session.get('notice')
+        let members = member.role === 'admin' ? await listMembers(database, member) : undefined
+        return context.render(
+          <SettingsPage
+            member={member}
+            members={members}
+            error={typeof error === 'string' ? error : undefined}
+            notice={typeof notice === 'string' ? notice : undefined}
+          />,
+        )
+      },
+      async action(context) {
+        let member = signedInOrThrow(context)
+        let formData = context.get(FormData)
+        let intent = String(formData.get('intent') ?? '')
+
+        try {
+          if (member.mustChangePassword && intent !== 'password') {
+            context.get(Session).flash('error', 'Change your password before you continue')
+            return publicRedirect(config, routes.settings.index.href())
+          }
+          if (intent === 'displayName') {
+            await updateOwnDisplayName(database, member, String(formData.get('displayName') ?? ''))
+          } else if (intent === 'password') {
+            let updated = await changeOwnPassword(database, member, {
+              currentPassword: String(formData.get('currentPassword') ?? ''),
+              newPassword: String(formData.get('newPassword') ?? ''),
+            })
+            signInMember(context, updated)
+          } else {
+            context.get(Session).flash('error', 'That Settings action is not available')
+          }
+          return publicRedirect(config, routes.settings.index.href())
+        } catch (error) {
+          if (error instanceof AuthError) {
+            let members = member.role === 'admin' ? await listMembers(database, member) : undefined
+            return context.render(
+              <SettingsPage member={member} members={members} error={error.message} />,
+            )
+          }
+          throw error
+        }
+      },
+    },
+  })
+}
+
+function passwordChangeRedirect(config: AppConfig, member: HouseholdMember) {
+  if (member.mustChangePassword) {
+    return publicRedirect(config, routes.settings.index.href())
+  }
+  return null
+}
+
+function requireSignedIn(config: AppConfig, database: AppDatabase) {
+  return requireAuth<HouseholdMember>({
+    onFailure() {
+      return guestRedirect(config, database)
+    },
+  })
+}
+
+async function runMemberMutation(
+  context: { params: { id: string }; get: (key: any) => any },
+  config: AppConfig,
+  database: AppDatabase,
+  mutate: (
+    actor: HouseholdMember,
+    memberId: string,
+    formData: FormData,
+  ) => Promise<HouseholdMember | void | { signOutIfSelf: true }>,
+) {
+  let actor = signedInOrThrow(context)
+  if (actor.role !== 'admin') {
+    return publicRedirect(config, routes.home.href())
+  }
+  let forced = passwordChangeRedirect(config, actor)
+  if (forced) {
+    return forced
+  }
+
+  try {
+    let result = await mutate(actor, context.params.id, context.get(FormData))
+    if (
+      result &&
+      typeof result === 'object' &&
+      'signOutIfSelf' in result &&
+      result.signOutIfSelf &&
+      actor.id === context.params.id
+    ) {
+      signOutMember(context.get(Session))
+      return guestRedirect(config, database)
+    }
+    return publicRedirect(config, routes.settings.index.href())
+  } catch (error) {
+    if (error instanceof AuthError) {
+      context.get(Session).flash('error', error.message)
+      return publicRedirect(config, routes.settings.index.href())
+    }
+    throw error
+  }
 }
 
 function signedInMember(context: { get: (key: typeof Auth) => unknown }): HouseholdMember | null {

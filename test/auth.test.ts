@@ -12,11 +12,21 @@ import {
   createFirstAdmin,
   findMemberById,
   householdHasMembers,
+  demoteMember,
+  changeOwnPassword,
+  disableMember,
+  enableMember,
   findInviteByToken,
+  hardDeleteMember,
   listInvites,
+  listMembers,
   mintInvite,
+  promoteMember,
+  recoverLastAdmin,
   redeemInvite,
   revokeInvite,
+  setTemporaryPassword,
+  updateOwnDisplayName,
 } from '../app/modules/auth/index.ts'
 import { loadConfig } from '../app/modules/config/index.ts'
 
@@ -412,6 +422,460 @@ describe('auth module', () => {
       (error: unknown) => {
         assert.ok(error instanceof AuthError)
         assert.equal(error.code, 'email_taken')
+        return true
+      },
+    )
+  })
+
+  it('lets an Admin promote a Member to Admin and demote an Admin to Member', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    let promoted = await promoteMember(db, admin, member.id)
+    assert.equal(promoted.role, 'admin')
+    assert.equal((await findMemberById(db, member.id))?.role, 'admin')
+
+    let demoted = await demoteMember(db, admin, promoted.id)
+    assert.equal(demoted.role, 'member')
+    assert.equal((await findMemberById(db, member.id))?.role, 'member')
+  })
+
+  it('lists Household members for an Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    let listed = await listMembers(db, admin)
+    assert.equal(listed.length, 2)
+    assert.deepEqual(
+      listed.map((row) => row.email),
+      ['ada@example.com', 'ben@example.com'],
+    )
+    assert.equal(listed[1]?.id, member.id)
+  })
+
+  it('rejects promote, demote, and list when the actor is not an Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    await assert.rejects(
+      () => promoteMember(db, member, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+    await assert.rejects(
+      () => demoteMember(db, member, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+    await assert.rejects(
+      () => listMembers(db, member),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+  })
+
+  it('rejects demoting the last Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+
+    await assert.rejects(
+      () => demoteMember(db, admin, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'last_admin')
+        return true
+      },
+    )
+    assert.equal((await findMemberById(db, admin.id))?.role, 'admin')
+  })
+
+  it('lets an Admin Disable a Member, which blocks sign-in and keeps their app data', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+      displayName: 'Ben',
+    })
+
+    let disabled = await disableMember(db, admin, member.id)
+    assert.ok(disabled.disabledAt)
+    assert.equal((await findMemberById(db, member.id))?.displayName, 'Ben')
+    assert.equal(
+      await authenticateMember(db, {
+        email: 'ben@example.com',
+        password: 'household-pass',
+      }),
+      null,
+    )
+
+    let enabled = await enableMember(db, admin, member.id)
+    assert.equal(enabled.disabledAt, null)
+    let signedIn = await authenticateMember(db, {
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+    assert.ok(signedIn)
+    assert.equal(signedIn.id, member.id)
+    assert.equal(signedIn.displayName, 'Ben')
+  })
+
+  it('rejects Disabling the last Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+
+    await assert.rejects(
+      () => disableMember(db, admin, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'last_admin')
+        return true
+      },
+    )
+    assert.equal((await findMemberById(db, admin.id))?.disabledAt, null)
+    assert.ok(
+      await authenticateMember(db, {
+        email: 'ada@example.com',
+        password: 'correct-horse',
+      }),
+    )
+  })
+
+  it('rejects Disable and re-enable when the actor is not an Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    await assert.rejects(
+      () => disableMember(db, member, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+    await assert.rejects(
+      () => enableMember(db, member, member.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+  })
+
+  it('lets an Admin Hard delete a Member and their app data', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let minted = await mintInvite(db, admin, { email: 'ben@example.com' })
+    let member = await redeemInvite(db, {
+      token: minted.token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+      displayName: 'Ben',
+    })
+
+    await hardDeleteMember(db, admin, member.id)
+
+    assert.equal(await findMemberById(db, member.id), null)
+    assert.equal(
+      await authenticateMember(db, {
+        email: 'ben@example.com',
+        password: 'household-pass',
+      }),
+      null,
+    )
+    let listed = await listMembers(db, admin)
+    assert.equal(listed.length, 1)
+    assert.equal(listed[0]?.id, admin.id)
+    let invites = await listInvites(db, admin)
+    assert.equal(invites.every((invite) => invite.acceptedBy !== member.id), true)
+  })
+
+  it('rejects Hard deleting the last Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+
+    await assert.rejects(
+      () => hardDeleteMember(db, admin, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'last_admin')
+        return true
+      },
+    )
+    assert.ok(await findMemberById(db, admin.id))
+  })
+
+  it('rejects Hard delete when the actor is not an Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    await assert.rejects(
+      () => hardDeleteMember(db, member, admin.id),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+    assert.ok(await findMemberById(db, admin.id))
+  })
+
+  it('lets a Household member change their own password and display name', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+      displayName: 'Ben',
+    })
+
+    let renamed = await updateOwnDisplayName(db, member, 'Benjamin')
+    assert.equal(renamed.displayName, 'Benjamin')
+    assert.equal((await findMemberById(db, member.id))?.displayName, 'Benjamin')
+
+    let cleared = await updateOwnDisplayName(db, member, '  ')
+    assert.equal(cleared.displayName, null)
+
+    await changeOwnPassword(db, member, {
+      currentPassword: 'household-pass',
+      newPassword: 'new-household',
+    })
+    assert.equal(
+      await authenticateMember(db, {
+        email: 'ben@example.com',
+        password: 'household-pass',
+      }),
+      null,
+    )
+    assert.ok(
+      await authenticateMember(db, {
+        email: 'ben@example.com',
+        password: 'new-household',
+      }),
+    )
+  })
+
+  it('rejects changing a password when the current password is wrong', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+
+    await assert.rejects(
+      () =>
+        changeOwnPassword(db, admin, {
+          currentPassword: 'wrong-password',
+          newPassword: 'new-correct',
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'invalid_password')
+        return true
+      },
+    )
+    assert.ok(
+      await authenticateMember(db, {
+        email: 'ada@example.com',
+        password: 'correct-horse',
+      }),
+    )
+  })
+
+  it('lets an Admin set a temporary password that forces a reset', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    let reset = await setTemporaryPassword(db, admin, member.id, {
+      password: 'temp-password',
+    })
+    assert.equal(reset.mustChangePassword, true)
+    assert.equal(
+      await authenticateMember(db, {
+        email: 'ben@example.com',
+        password: 'household-pass',
+      }),
+      null,
+    )
+    let signedIn = await authenticateMember(db, {
+      email: 'ben@example.com',
+      password: 'temp-password',
+    })
+    assert.ok(signedIn)
+    assert.equal(signedIn.mustChangePassword, true)
+
+    await changeOwnPassword(db, signedIn, {
+      currentPassword: 'temp-password',
+      newPassword: 'chosen-password',
+    })
+    let afterChange = await authenticateMember(db, {
+      email: 'ben@example.com',
+      password: 'chosen-password',
+    })
+    assert.ok(afterChange)
+    assert.equal(afterChange.mustChangePassword, false)
+  })
+
+  it('rejects setting a temporary password when the actor is not an Admin', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+
+    await assert.rejects(
+      () =>
+        setTemporaryPassword(db, member, admin.id, {
+          password: 'temp-password',
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'not_admin')
+        return true
+      },
+    )
+    assert.ok(
+      await authenticateMember(db, {
+        email: 'ada@example.com',
+        password: 'correct-horse',
+      }),
+    )
+  })
+
+  it('recovers last-Admin lockout by promoting, re-enabling, and setting a password', async () => {
+    let db = await freshDatabase()
+    let admin = await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    let member = await redeemInvite(db, {
+      token: (await mintInvite(db, admin)).token,
+      email: 'ben@example.com',
+      password: 'household-pass',
+    })
+    await promoteMember(db, admin, member.id)
+    await disableMember(db, member, admin.id)
+
+    let recovered = await recoverLastAdmin(db, {
+      email: 'ADA@example.com',
+      password: 'recovered-pass',
+    })
+    assert.equal(recovered.role, 'admin')
+    assert.equal(recovered.disabledAt, null)
+    assert.equal(
+      await authenticateMember(db, {
+        email: 'ada@example.com',
+        password: 'correct-horse',
+      }),
+      null,
+    )
+    let signedIn = await authenticateMember(db, {
+      email: 'ada@example.com',
+      password: 'recovered-pass',
+    })
+    assert.ok(signedIn)
+    assert.equal(signedIn.role, 'admin')
+  })
+
+  it('rejects last-Admin recovery when no Household member has that email', async () => {
+    let db = await freshDatabase()
+    await createFirstAdmin(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+
+    await assert.rejects(
+      () =>
+        recoverLastAdmin(db, {
+          email: 'missing@example.com',
+          password: 'recovered-pass',
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof AuthError)
+        assert.equal(error.code, 'member_unavailable')
         return true
       },
     )

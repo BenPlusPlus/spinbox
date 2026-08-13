@@ -34,10 +34,13 @@ export type HouseholdMember = {
   role: MemberRole
   disabledAt: string | null
   createdAt: string
+  mustChangePassword: boolean
+  sessionEpoch: number
 }
 
 type AuthSessionRecord = {
   memberId: string
+  sessionEpoch: number
 }
 
 export type InviteStatus = 'unused' | 'revoked' | 'expired' | 'accepted'
@@ -65,6 +68,8 @@ export type AuthErrorCode =
   | 'not_admin'
   | 'invite_unavailable'
   | 'email_taken'
+  | 'last_admin'
+  | 'member_unavailable'
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode
@@ -83,6 +88,8 @@ type MemberRow = {
   role: MemberRole
   disabled_at: string | null
   created_at: string
+  must_change_password: number
+  session_epoch: number
 }
 
 type InviteRow = {
@@ -144,6 +151,8 @@ export async function createFirstAdmin(
     role: 'admin',
     disabledAt: null,
     createdAt,
+    mustChangePassword: false,
+    sessionEpoch: 0,
   }
 }
 
@@ -158,7 +167,8 @@ export async function authenticateMember(
 
   let row = database.sqlite
     .prepare(
-      `SELECT m.id, m.email, m.display_name, m.role, m.disabled_at, m.created_at, c.password_hash
+      `SELECT m.id, m.email, m.display_name, m.role, m.disabled_at, m.created_at,
+              m.must_change_password, m.session_epoch, c.password_hash
        FROM members m
        JOIN credentials c ON c.member_id = m.id
        WHERE m.email = ?`,
@@ -182,7 +192,8 @@ export async function findMemberById(
 ): Promise<HouseholdMember | null> {
   let row = database.sqlite
     .prepare(
-      `SELECT id, email, display_name, role, disabled_at, created_at
+      `SELECT id, email, display_name, role, disabled_at, created_at,
+              must_change_password, session_epoch
        FROM members
        WHERE id = ?`,
     )
@@ -357,6 +368,353 @@ export async function redeemInvite(
     role: 'member',
     disabledAt: null,
     createdAt,
+    mustChangePassword: false,
+    sessionEpoch: 0,
+  }
+}
+
+export async function listMembers(
+  database: AppDatabase,
+  actor: HouseholdMember,
+): Promise<HouseholdMember[]> {
+  await requireActiveAdmin(database, actor)
+  let rows = database.sqlite
+    .prepare(
+      `SELECT id, email, display_name, role, disabled_at, created_at,
+              must_change_password, session_epoch
+       FROM members
+       ORDER BY created_at ASC`,
+    )
+    .all() as MemberRow[]
+  return rows.map(toHouseholdMember)
+}
+
+export async function promoteMember(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  memberId: string,
+): Promise<HouseholdMember> {
+  await requireActiveAdmin(database, actor)
+  return setMemberRole(database, memberId, 'admin')
+}
+
+export async function demoteMember(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  memberId: string,
+): Promise<HouseholdMember> {
+  await requireActiveAdmin(database, actor)
+  return setMemberRole(database, memberId, 'member')
+}
+
+function setMemberRole(
+  database: AppDatabase,
+  memberId: string,
+  role: MemberRole,
+): HouseholdMember {
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = loadMemberRow(database, memberId)
+    if (row == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+
+    if (row.role !== role) {
+      if (role === 'member') {
+        rejectIfLastActiveAdmin(database, row)
+      }
+      database.sqlite.prepare('UPDATE members SET role = ? WHERE id = ?').run(role, memberId)
+      row = { ...row, role }
+    }
+
+    database.sqlite.exec('COMMIT')
+    return toHouseholdMember(row)
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+function loadMemberRow(database: AppDatabase, memberId: string): MemberRow | undefined {
+  return database.sqlite
+    .prepare(
+      `SELECT id, email, display_name, role, disabled_at, created_at,
+              must_change_password, session_epoch
+       FROM members
+       WHERE id = ?`,
+    )
+    .get(memberId) as MemberRow | undefined
+}
+
+export async function disableMember(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  memberId: string,
+  input: { now?: Date } = {},
+): Promise<HouseholdMember> {
+  await requireActiveAdmin(database, actor)
+  let now = input.now ?? new Date()
+  let disabledAt = now.toISOString()
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = loadMemberRow(database, memberId)
+    if (row == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+
+    if (row.disabled_at == null) {
+      rejectIfLastActiveAdmin(database, row)
+      database.sqlite
+        .prepare('UPDATE members SET disabled_at = ?, session_epoch = session_epoch + 1 WHERE id = ?')
+        .run(disabledAt, memberId)
+      row = { ...row, disabled_at: disabledAt, session_epoch: row.session_epoch + 1 }
+    }
+
+    database.sqlite.exec('COMMIT')
+    return toHouseholdMember(row)
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+export async function hardDeleteMember(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  memberId: string,
+): Promise<void> {
+  await requireActiveAdmin(database, actor)
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = loadMemberRow(database, memberId)
+    if (row == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+
+    rejectIfLastActiveAdmin(database, row)
+    database.sqlite.prepare('DELETE FROM invites WHERE created_by = ?').run(memberId)
+    database.sqlite
+      .prepare('UPDATE invites SET accepted_by = NULL WHERE accepted_by = ?')
+      .run(memberId)
+    database.sqlite.prepare('DELETE FROM credentials WHERE member_id = ?').run(memberId)
+    database.sqlite.prepare('DELETE FROM members WHERE id = ?').run(memberId)
+    database.sqlite.exec('COMMIT')
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+export async function enableMember(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  memberId: string,
+): Promise<HouseholdMember> {
+  await requireActiveAdmin(database, actor)
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = loadMemberRow(database, memberId)
+    if (row == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+
+    if (row.disabled_at != null) {
+      database.sqlite.prepare('UPDATE members SET disabled_at = NULL WHERE id = ?').run(memberId)
+      row = { ...row, disabled_at: null }
+    }
+
+    database.sqlite.exec('COMMIT')
+    return toHouseholdMember(row)
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+export async function updateOwnDisplayName(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  displayName: string | null,
+): Promise<HouseholdMember> {
+  let current = await requireActiveMember(database, actor)
+  let nextName = normalizeDisplayName(displayName)
+
+  database.sqlite
+    .prepare('UPDATE members SET display_name = ? WHERE id = ?')
+    .run(nextName, current.id)
+
+  let updated = await findMemberById(database, current.id)
+  if (updated == null) {
+    throw new AuthError('member_unavailable', 'That Household member was not found')
+  }
+  return updated
+}
+
+export async function changeOwnPassword(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  input: { currentPassword: string; newPassword: string },
+): Promise<HouseholdMember> {
+  let current = await requireActiveMember(database, actor)
+  let newPassword = parsePassword(input.newPassword)
+  let passwordHash = await loadPasswordHash(database, current.id)
+  if (passwordHash == null || !(await verifyPassword(input.currentPassword, passwordHash))) {
+    throw new AuthError('invalid_password', 'Current password is incorrect')
+  }
+
+  return replacePassword(database, current.id, newPassword, { mustChangePassword: false })
+}
+
+export async function setTemporaryPassword(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  memberId: string,
+  input: { password: string },
+): Promise<HouseholdMember> {
+  await requireActiveAdmin(database, actor)
+  let password = parsePassword(input.password)
+
+  let row = loadMemberRow(database, memberId)
+  if (row == null) {
+    throw new AuthError('member_unavailable', 'That Household member was not found')
+  }
+
+  return replacePassword(database, memberId, password, { mustChangePassword: true })
+}
+
+export async function recoverLastAdmin(
+  database: AppDatabase,
+  input: { email: string; password: string },
+): Promise<HouseholdMember> {
+  let email = parseEmail(input.email)
+  let password = parsePassword(input.password)
+  let passwordHash = await hashPassword(password)
+  let updatedAt = new Date().toISOString()
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = database.sqlite
+      .prepare(
+        `SELECT id, email, display_name, role, disabled_at, created_at,
+                must_change_password, session_epoch
+         FROM members
+         WHERE email = ?`,
+      )
+      .get(email) as MemberRow | undefined
+    if (row == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+
+    database.sqlite
+      .prepare(
+        `UPDATE members
+         SET role = 'admin',
+             disabled_at = NULL,
+             must_change_password = 0,
+             session_epoch = session_epoch + 1
+         WHERE id = ?`,
+      )
+      .run(row.id)
+    database.sqlite
+      .prepare(
+        `UPDATE credentials
+         SET password_hash = ?, updated_at = ?
+         WHERE member_id = ?`,
+      )
+      .run(passwordHash, updatedAt, row.id)
+
+    let updated = loadMemberRow(database, row.id)
+    if (updated == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+    database.sqlite.exec('COMMIT')
+    return toHouseholdMember(updated)
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+async function replacePassword(
+  database: AppDatabase,
+  memberId: string,
+  password: string,
+  options: { mustChangePassword: boolean },
+): Promise<HouseholdMember> {
+  let passwordHash = await hashPassword(password)
+  let updatedAt = new Date().toISOString()
+  let mustChange = options.mustChangePassword ? 1 : 0
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = loadMemberRow(database, memberId)
+    if (row == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+
+    database.sqlite
+      .prepare(
+        `UPDATE credentials
+         SET password_hash = ?, updated_at = ?
+         WHERE member_id = ?`,
+      )
+      .run(passwordHash, updatedAt, memberId)
+    database.sqlite
+      .prepare(
+        `UPDATE members
+         SET must_change_password = ?, session_epoch = session_epoch + 1
+         WHERE id = ?`,
+      )
+      .run(mustChange, memberId)
+
+    let updated = loadMemberRow(database, memberId)
+    if (updated == null) {
+      throw new AuthError('member_unavailable', 'That Household member was not found')
+    }
+    database.sqlite.exec('COMMIT')
+    return toHouseholdMember(updated)
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+function loadPasswordHash(database: AppDatabase, memberId: string): string | null {
+  let row = database.sqlite
+    .prepare('SELECT password_hash FROM credentials WHERE member_id = ?')
+    .get(memberId) as { password_hash: string } | undefined
+  return row?.password_hash ?? null
+}
+
+async function requireActiveMember(
+  database: AppDatabase,
+  actor: HouseholdMember,
+): Promise<HouseholdMember> {
+  let current = await findActiveMemberById(database, actor.id)
+  if (current == null) {
+    throw new AuthError('member_unavailable', 'That Household member was not found')
+  }
+  return current
+}
+
+function rejectIfLastActiveAdmin(database: AppDatabase, target: MemberRow) {
+  if (target.role !== 'admin' || target.disabled_at != null) {
+    return
+  }
+
+  let row = database.sqlite
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM members
+       WHERE role = 'admin' AND disabled_at IS NULL`,
+    )
+    .get() as { count: number }
+
+  if (row.count <= 1) {
+    throw new AuthError('last_admin', 'The last Admin cannot be demoted, Disabled, or Hard deleted')
   }
 }
 
@@ -366,6 +724,18 @@ async function findActiveMemberById(
 ): Promise<HouseholdMember | null> {
   let member = await findMemberById(database, id)
   if (member == null || member.disabledAt != null) {
+    return null
+  }
+  return member
+}
+
+async function findActiveMemberSession(
+  database: AppDatabase,
+  id: string,
+  sessionEpoch: number,
+): Promise<HouseholdMember | null> {
+  let member = await findActiveMemberById(database, id)
+  if (member == null || member.sessionEpoch !== sessionEpoch) {
     return null
   }
   return member
@@ -417,10 +787,13 @@ function createMemberSessionScheme(database: AppDatabase) {
         return null
       }
 
-      return { memberId: record.memberId }
+      return {
+        memberId: record.memberId,
+        sessionEpoch: typeof record.sessionEpoch === 'number' ? record.sessionEpoch : 0,
+      }
     },
     verify(value) {
-      return findActiveMemberById(database, value.memberId)
+      return findActiveMemberSession(database, value.memberId, value.sessionEpoch)
     },
     invalidate(session) {
       session.unset(AUTH_SESSION_KEY)
@@ -435,7 +808,10 @@ export function createMemberAuthMiddleware(database: AppDatabase) {
 }
 
 function writeAuthSession(session: Session, member: HouseholdMember) {
-  session.set(AUTH_SESSION_KEY, { memberId: member.id } satisfies AuthSessionRecord)
+  session.set(AUTH_SESSION_KEY, {
+    memberId: member.id,
+    sessionEpoch: member.sessionEpoch,
+  } satisfies AuthSessionRecord)
 }
 
 export function signInMember(context: Parameters<typeof completeAuth>[0], member: HouseholdMember) {
@@ -464,6 +840,8 @@ function toHouseholdMember(row: MemberRow): HouseholdMember {
     role: row.role,
     disabledAt: row.disabled_at,
     createdAt: row.created_at,
+    mustChangePassword: row.must_change_password === 1,
+    sessionEpoch: row.session_epoch,
   }
 }
 
@@ -569,7 +947,7 @@ async function requireActiveAdmin(
 ): Promise<HouseholdMember> {
   let current = await findActiveMemberById(database, actor.id)
   if (current == null || current.role !== 'admin') {
-    throw new AuthError('not_admin', 'Only an Admin can manage Invites')
+    throw new AuthError('not_admin', 'Only an Admin can do this')
   }
   return current
 }

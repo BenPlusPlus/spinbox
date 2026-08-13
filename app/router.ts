@@ -8,6 +8,7 @@ import {
   createJoinController,
   createLoginController,
   createRootController,
+  createSettingsController,
   createSetupController,
 } from './actions/controller.tsx'
 import type { AppDatabase } from './data/index.ts'
@@ -61,6 +62,7 @@ export function createApp({
   router.map(routes.login, createLoginController(deps))
   router.map(routes.invites, createInvitesController(deps))
   router.map(routes.join, createJoinController(deps))
+  router.map(routes.settings, createSettingsController(deps))
 
   return router
 }
