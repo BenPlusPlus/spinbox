@@ -1,9 +1,23 @@
 import * as http from 'node:http'
 import { createRequestListener } from 'remix/node-fetch-server'
 
+import { openDatabase, type AppDatabase } from './app/data/index.ts'
+import { ConfigError, loadConfig, type AppConfig } from './app/modules/config/index.ts'
 import { router } from './app/router.ts'
 
-const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 44100
+let config: AppConfig
+let database: AppDatabase
+try {
+  config = loadConfig()
+  database = await openDatabase(config)
+} catch (error) {
+  if (error instanceof ConfigError) {
+    console.error(error.message)
+  } else {
+    console.error(error)
+  }
+  process.exit(1)
+}
 
 const server = http.createServer(
   createRequestListener(async (request) => {
@@ -18,8 +32,10 @@ const server = http.createServer(
   }),
 )
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Server listening on http://127.0.0.1:${port}`)
+server.listen(config.port, '127.0.0.1', () => {
+  console.log(
+    `Server listening on http://127.0.0.1:${config.port} (origin ${config.publicUrl.origin})`,
+  )
 })
 
 let shuttingDown = false
@@ -30,6 +46,7 @@ function shutdown() {
   }
 
   shuttingDown = true
+  database.close()
   server.close(() => process.exit(0))
   server.closeAllConnections()
 }
