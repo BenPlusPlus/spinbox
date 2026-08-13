@@ -38,4 +38,4 @@ One SQLite database under the host app data dir. **Versioned migrations and the 
 - Design doc and PR plan assume this tree and these module boundaries, not a scaffold-only template dump.
 - UI never imports `app/modules/*` from client islands; islands call routes/actions.
 - Future transcode/cache pipelines replace the media stream-source adapter; future scan workers replace the library scan adapter.
-- npm workspace splits remain optional and are not required to start implementation.
+- pnpm workspace splits remain optional and are not required to start implementation.

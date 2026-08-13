@@ -9,15 +9,15 @@ Requires **Node ≥ 24.3**.
 ## Run
 
 ```sh
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open http://127.0.0.1:44100 for the smoke hello route.
 
 ```sh
-npm test
-npm run typecheck
+pnpm test
+pnpm typecheck
 ```
 
 ## Layout
