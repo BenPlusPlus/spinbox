@@ -4,6 +4,8 @@ import { session } from 'remix/middleware/session'
 import { staticFiles } from 'remix/middleware/static'
 
 import {
+  createInvitesController,
+  createJoinController,
   createLoginController,
   createRootController,
   createSetupController,
@@ -57,6 +59,8 @@ export function createApp({
   router.map(routes, createRootController(deps))
   router.map(routes.setup, createSetupController(deps))
   router.map(routes.login, createLoginController(deps))
+  router.map(routes.invites, createInvitesController(deps))
+  router.map(routes.join, createJoinController(deps))
 
   return router
 }

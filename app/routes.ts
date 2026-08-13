@@ -6,4 +6,7 @@ export const routes = route({
   setup: form('/setup'),
   login: form('/login'),
   logout: { method: 'POST', pattern: '/logout' },
+  invites: form('/invites'),
+  inviteRevoke: { method: 'POST', pattern: '/invites/:id/revoke' },
+  join: form('/join/:token'),
 })

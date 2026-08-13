@@ -1,5 +1,5 @@
 /** `remix/auth` wiring, credentials, cookie sessions, roles, Invites, Household member lifecycle. */
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 
 import { completeAuth, createCredentialsAuthProvider } from 'remix/auth'
 import { createCookie } from 'remix/cookie'
@@ -22,6 +22,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const AUTH_SESSION_KEY = 'auth'
 const SESSION_COOKIE_NAME = 'spinbox_session'
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const INVITE_TOKEN_BYTES = 32
 
 export type MemberRole = 'admin' | 'member'
 
@@ -38,7 +40,31 @@ type AuthSessionRecord = {
   memberId: string
 }
 
-export type AuthErrorCode = 'setup_unavailable' | 'invalid_email' | 'invalid_password'
+export type InviteStatus = 'unused' | 'revoked' | 'expired' | 'accepted'
+
+export type Invite = {
+  id: string
+  email: string | null
+  createdBy: string
+  expiresAt: string
+  revokedAt: string | null
+  acceptedAt: string | null
+  acceptedBy: string | null
+  createdAt: string
+  status: InviteStatus
+}
+
+export type MintedInvite = Invite & {
+  token: string
+}
+
+export type AuthErrorCode =
+  | 'setup_unavailable'
+  | 'invalid_email'
+  | 'invalid_password'
+  | 'not_admin'
+  | 'invite_unavailable'
+  | 'email_taken'
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode
@@ -59,6 +85,17 @@ type MemberRow = {
   created_at: string
 }
 
+type InviteRow = {
+  id: string
+  email: string | null
+  created_by: string
+  expires_at: string
+  revoked_at: string | null
+  accepted_at: string | null
+  accepted_by: string | null
+  created_at: string
+}
+
 export async function householdHasMembers(database: AppDatabase): Promise<boolean> {
   let row = database.sqlite.prepare('SELECT COUNT(*) AS count FROM members').get() as {
     count: number
@@ -70,19 +107,8 @@ export async function createFirstAdmin(
   database: AppDatabase,
   input: { email: string; password: string; displayName?: string | null },
 ): Promise<HouseholdMember> {
-  let email = normalizeEmail(input.email)
-  if (!email || !EMAIL_PATTERN.test(email)) {
-    throw new AuthError('invalid_email', 'Enter a valid email address')
-  }
-
-  let password = input.password
-  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    throw new AuthError(
-      'invalid_password',
-      `Password must be between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters`,
-    )
-  }
-
+  let email = parseEmail(input.email)
+  let password = parsePassword(input.password)
   let displayName = normalizeDisplayName(input.displayName)
   let passwordHash = await hashPassword(password)
   let id = crypto.randomUUID()
@@ -97,18 +123,14 @@ export async function createFirstAdmin(
       throw new AuthError('setup_unavailable', 'Setup is unavailable once a Household member exists')
     }
 
-    database.sqlite
-      .prepare(
-        `INSERT INTO members (id, email, display_name, role, disabled_at, created_at)
-         VALUES (?, ?, ?, 'admin', NULL, ?)`,
-      )
-      .run(id, email, displayName, createdAt)
-    database.sqlite
-      .prepare(
-        `INSERT INTO credentials (member_id, password_hash, updated_at)
-         VALUES (?, ?, ?)`,
-      )
-      .run(id, passwordHash, createdAt)
+    insertMemberRow(database, {
+      id,
+      email,
+      displayName,
+      role: 'admin',
+      createdAt,
+      passwordHash,
+    })
     database.sqlite.exec('COMMIT')
   } catch (error) {
     database.sqlite.exec('ROLLBACK')
@@ -167,6 +189,175 @@ export async function findMemberById(
     .get(id) as MemberRow | undefined
 
   return row ? toHouseholdMember(row) : null
+}
+
+export async function mintInvite(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  input: { email?: string | null; now?: Date } = {},
+): Promise<MintedInvite> {
+  await requireActiveAdmin(database, actor)
+
+  let email = parseOptionalEmail(input.email)
+  let now = input.now ?? new Date()
+  let id = crypto.randomUUID()
+  let token = randomBytes(INVITE_TOKEN_BYTES).toString('base64url')
+  let createdAt = now.toISOString()
+  let expiresAt = new Date(now.getTime() + INVITE_TTL_MS).toISOString()
+
+  database.sqlite
+    .prepare(
+      `INSERT INTO invites (id, token_hash, email, created_by, expires_at, revoked_at, accepted_at, accepted_by, created_at)
+       VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?)`,
+    )
+    .run(id, hashInviteToken(token), email, actor.id, expiresAt, createdAt)
+
+  return {
+    id,
+    token,
+    email,
+    createdBy: actor.id,
+    expiresAt,
+    revokedAt: null,
+    acceptedAt: null,
+    acceptedBy: null,
+    createdAt,
+    status: 'unused',
+  }
+}
+
+export async function listInvites(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  input: { now?: Date } = {},
+): Promise<Invite[]> {
+  await requireActiveAdmin(database, actor)
+  let now = input.now ?? new Date()
+  let rows = database.sqlite
+    .prepare(
+      `SELECT id, email, created_by, expires_at, revoked_at, accepted_at, accepted_by, created_at
+       FROM invites
+       ORDER BY created_at DESC`,
+    )
+    .all() as InviteRow[]
+  return rows.map((row) => toInvite(row, now))
+}
+
+export async function findInviteByToken(
+  database: AppDatabase,
+  token: string,
+  input: { now?: Date } = {},
+): Promise<Invite | null> {
+  let row = loadInviteByToken(database, token)
+  return row ? toInvite(row, input.now ?? new Date()) : null
+}
+
+export async function revokeInvite(
+  database: AppDatabase,
+  actor: HouseholdMember,
+  inviteId: string,
+  input: { now?: Date } = {},
+): Promise<Invite> {
+  await requireActiveAdmin(database, actor)
+  let now = input.now ?? new Date()
+  let revokedAt = now.toISOString()
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let row = database.sqlite
+      .prepare(
+        `SELECT id, email, created_by, expires_at, revoked_at, accepted_at, accepted_by, created_at
+         FROM invites
+         WHERE id = ?`,
+      )
+      .get(inviteId) as InviteRow | undefined
+
+    if (row == null || inviteStatus(row, now) !== 'unused') {
+      throw new AuthError('invite_unavailable', 'This Invite cannot be revoked')
+    }
+
+    let revoked = database.sqlite
+      .prepare(
+        `UPDATE invites
+         SET revoked_at = ?
+         WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?`,
+      )
+      .run(revokedAt, inviteId, revokedAt)
+    if (revoked.changes !== 1) {
+      throw new AuthError('invite_unavailable', 'This Invite cannot be revoked')
+    }
+    database.sqlite.exec('COMMIT')
+    return toInvite({ ...row, revoked_at: revokedAt }, now)
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+}
+
+export async function redeemInvite(
+  database: AppDatabase,
+  input: {
+    token: string
+    email: string
+    password: string
+    displayName?: string | null
+    now?: Date
+  },
+): Promise<HouseholdMember> {
+  let email = parseEmail(input.email)
+  let password = parsePassword(input.password)
+  let displayName = normalizeDisplayName(input.displayName)
+  let now = input.now ?? new Date()
+  let passwordHash = await hashPassword(password)
+  let id = crypto.randomUUID()
+  let createdAt = now.toISOString()
+
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    let invite = loadInviteByToken(database, input.token)
+    if (invite == null || inviteStatus(invite, now) !== 'unused') {
+      throw new AuthError('invite_unavailable', 'This Invite cannot be used')
+    }
+
+    if (invite.email != null && invite.email !== email) {
+      throw new AuthError('invalid_email', 'This Invite is for a different email address')
+    }
+
+    insertMemberRow(database, {
+      id,
+      email,
+      displayName,
+      role: 'member',
+      createdAt,
+      passwordHash,
+    })
+    let accepted = database.sqlite
+      .prepare(
+        `UPDATE invites
+         SET accepted_at = ?, accepted_by = ?
+         WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?`,
+      )
+      .run(createdAt, id, invite.id, createdAt)
+    if (accepted.changes !== 1) {
+      throw new AuthError('invite_unavailable', 'This Invite cannot be used')
+    }
+    database.sqlite.exec('COMMIT')
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    if (isUniqueConstraint(error)) {
+      throw new AuthError('email_taken', 'A Household member with that email already exists')
+    }
+    throw error
+  }
+
+  return {
+    id,
+    email,
+    displayName,
+    role: 'member',
+    disabledAt: null,
+    createdAt,
+  }
 }
 
 async function findActiveMemberById(
@@ -276,8 +467,127 @@ function toHouseholdMember(row: MemberRow): HouseholdMember {
   }
 }
 
+function parseEmail(value: string): string {
+  let email = normalizeEmail(value)
+  if (!email || !EMAIL_PATTERN.test(email)) {
+    throw new AuthError('invalid_email', 'Enter a valid email address')
+  }
+  return email
+}
+
+function parsePassword(password: string): string {
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+    throw new AuthError(
+      'invalid_password',
+      `Password must be between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters`,
+    )
+  }
+  return password
+}
+
+function inviteStatus(invite: InviteRow, now: Date): InviteStatus {
+  if (invite.accepted_at != null) {
+    return 'accepted'
+  }
+  if (invite.revoked_at != null) {
+    return 'revoked'
+  }
+  if (now.toISOString() >= invite.expires_at) {
+    return 'expired'
+  }
+  return 'unused'
+}
+
+function toInvite(row: InviteRow, now: Date): Invite {
+  return {
+    id: row.id,
+    email: row.email,
+    createdBy: row.created_by,
+    expiresAt: row.expires_at,
+    revokedAt: row.revoked_at,
+    acceptedAt: row.accepted_at,
+    acceptedBy: row.accepted_by,
+    createdAt: row.created_at,
+    status: inviteStatus(row, now),
+  }
+}
+
+function loadInviteByToken(database: AppDatabase, token: string): InviteRow | null {
+  if (!token) {
+    return null
+  }
+  let row = database.sqlite
+    .prepare(
+      `SELECT id, email, created_by, expires_at, revoked_at, accepted_at, accepted_by, created_at
+       FROM invites
+       WHERE token_hash = ?`,
+    )
+    .get(hashInviteToken(token)) as InviteRow | undefined
+  return row ?? null
+}
+
+function insertMemberRow(
+  database: AppDatabase,
+  input: {
+    id: string
+    email: string
+    displayName: string | null
+    role: MemberRole
+    createdAt: string
+    passwordHash: string
+  },
+) {
+  database.sqlite
+    .prepare(
+      `INSERT INTO members (id, email, display_name, role, disabled_at, created_at)
+       VALUES (?, ?, ?, ?, NULL, ?)`,
+    )
+    .run(input.id, input.email, input.displayName, input.role, input.createdAt)
+  database.sqlite
+    .prepare(
+      `INSERT INTO credentials (member_id, password_hash, updated_at)
+       VALUES (?, ?, ?)`,
+    )
+    .run(input.id, input.passwordHash, input.createdAt)
+}
+
+function isUniqueConstraint(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error != null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ERR_SQLITE_ERROR' &&
+    'message' in error &&
+    typeof (error as { message?: string }).message === 'string' &&
+    (error as { message: string }).message.includes('UNIQUE')
+  )
+}
+
+async function requireActiveAdmin(
+  database: AppDatabase,
+  actor: HouseholdMember,
+): Promise<HouseholdMember> {
+  let current = await findActiveMemberById(database, actor.id)
+  if (current == null || current.role !== 'admin') {
+    throw new AuthError('not_admin', 'Only an Admin can manage Invites')
+  }
+  return current
+}
+
+function hashInviteToken(token: string): string {
+  return createHash('sha256').update(token).digest('base64url')
+}
+
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function parseOptionalEmail(value: string | null | undefined): string | null {
+  let email = value == null ? '' : normalizeEmail(value)
+  if (!email) {
+    return null
+  }
+  return parseEmail(email)
 }
 
 function normalizeDisplayName(value: string | null | undefined): string | null {
