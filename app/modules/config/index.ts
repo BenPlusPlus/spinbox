@@ -20,6 +20,9 @@ export type AppConfig = {
   publicUrl: URL
   port: number
   sessionSecret: string
+  libraryExtensions: string[]
+  librarySkipDirs: string[]
+  libraryScanGlobs: string[]
 }
 
 export type EnvSource = Record<string, string | undefined>
@@ -63,7 +66,43 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     publicUrl: publicUrl!,
     port: port!,
     sessionSecret: sessionSecret!,
+    libraryExtensions: readCsvList(env.LIBRARY_EXTENSIONS, [...DEFAULT_LIBRARY_EXTENSIONS]),
+    librarySkipDirs: readCsvList(env.LIBRARY_SKIP_DIRS, [...DEFAULT_LIBRARY_SKIP_DIRS]),
+    libraryScanGlobs: readCsvList(env.LIBRARY_SCAN_GLOBS, []),
   }
+}
+
+export const DEFAULT_LIBRARY_EXTENSIONS = [
+  'mp3',
+  'm4a',
+  'mp4',
+  'flac',
+  'ogg',
+  'opus',
+  'wav',
+  'aac',
+  'aiff',
+  'aif',
+  'wma',
+]
+
+export const DEFAULT_LIBRARY_SKIP_DIRS = [
+  '@eaDir',
+  '#recycle',
+  '#snapshot',
+  '.SyncArchive',
+  'lost+found',
+]
+
+function readCsvList(value: string | undefined, fallback: string[]): string[] {
+  let trimmed = value?.trim()
+  if (!trimmed) {
+    return fallback
+  }
+  return trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
 }
 
 function readAbsolutePath(

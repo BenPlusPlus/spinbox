@@ -2,6 +2,7 @@ import type { Handle } from 'remix/ui'
 import { css } from 'remix/ui'
 
 import type { HouseholdMember } from '../modules/auth/index.ts'
+import type { ScanStatus } from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
 import { Document } from './document.tsx'
 
@@ -9,12 +10,13 @@ export function SettingsPage(
   handle: Handle<{
     member: HouseholdMember
     members?: HouseholdMember[]
+    scanStatus?: ScanStatus
     error?: string
     notice?: string
   }>,
 ) {
   return () => {
-    let { member, members, error, notice } = handle.props
+    let { member, members, scanStatus, error, notice } = handle.props
 
     return (
       <Document title="Settings · Spinbox">
@@ -81,6 +83,18 @@ export function SettingsPage(
               Change password
             </button>
           </form>
+
+          {member.role === 'admin' && scanStatus && !member.mustChangePassword ? (
+            <>
+              <h2 mix={subheading}>Library Scan run</h2>
+              <p mix={copy}>{scanStatusCopy(scanStatus)}</p>
+              <form method="POST" action={routes.scanNow.href()}>
+                <button mix={submit} type="submit" disabled={scanStatus.state === 'running'}>
+                  Scan now
+                </button>
+              </form>
+            </>
+          ) : null}
 
           {member.role === 'admin' && members && !member.mustChangePassword ? (
             <>
@@ -163,6 +177,20 @@ export function SettingsPage(
       </Document>
     )
   }
+}
+
+function scanStatusCopy(status: ScanStatus): string {
+  if (status.state === 'running') {
+    return 'Scan run: running'
+  }
+  if (!status.lastResult) {
+    return 'Scan run: idle'
+  }
+  let result = status.lastResult
+  if (result.outcome === 'succeeded') {
+    return `Last Scan run: succeeded · ${result.tracksSeen} Tracks`
+  }
+  return `Last Scan run: failed${result.error ? ` · ${result.error}` : ''}`
 }
 
 let page = css({

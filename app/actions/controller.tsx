@@ -30,6 +30,12 @@ import {
   type HouseholdMember,
 } from '../modules/auth/index.ts'
 import { publicOrigin, type AppConfig } from '../modules/config/index.ts'
+import {
+  getScanStatus,
+  LibraryError,
+  startScan,
+  type ScanAdapter,
+} from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
 import { InvitesPage } from '../ui/invites-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
@@ -42,9 +48,10 @@ type AppDeps = {
   config: AppConfig
   database: AppDatabase
   passwordProvider: ReturnType<typeof createMemberPasswordProvider>
+  scanAdapter?: ScanAdapter
 }
 
-export function createRootController({ config, database }: AppDeps) {
+export function createRootController({ config, database, scanAdapter }: AppDeps) {
   return createController(routes, {
     actions: {
       async assets(context) {
@@ -116,6 +123,34 @@ export function createRootController({ config, database }: AppDeps) {
               password: String(formData.get('password') ?? ''),
             }),
           )
+        },
+      },
+      scanNow: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          let member = signedInOrThrow(context)
+          if (member.role !== 'admin') {
+            return publicRedirect(config, routes.home.href())
+          }
+          let forced = passwordChangeRedirect(config, member)
+          if (forced) {
+            return forced
+          }
+
+          try {
+            let started = await startScan(database, config, member, { adapter: scanAdapter })
+            if (!started.ok) {
+              context.get(Session).flash('error', 'A Scan run is already in progress')
+            }
+          } catch (error) {
+            if (error instanceof LibraryError) {
+              context.get(Session).flash('error', error.message)
+              return publicRedirect(config, routes.settings.index.href())
+            }
+            throw error
+          }
+
+          return publicRedirect(config, routes.settings.index.href())
         },
       },
       inviteRevoke: {
@@ -339,10 +374,12 @@ export function createSettingsController({ config, database }: AppDeps) {
         let error = session.get('error')
         let notice = session.get('notice')
         let members = member.role === 'admin' ? await listMembers(database, member) : undefined
+        let scanStatus = member.role === 'admin' ? getScanStatus(database) : undefined
         return context.render(
           <SettingsPage
             member={member}
             members={members}
+            scanStatus={scanStatus}
             error={typeof error === 'string' ? error : undefined}
             notice={typeof notice === 'string' ? notice : undefined}
           />,
@@ -373,8 +410,14 @@ export function createSettingsController({ config, database }: AppDeps) {
         } catch (error) {
           if (error instanceof AuthError) {
             let members = member.role === 'admin' ? await listMembers(database, member) : undefined
+            let scanStatus = member.role === 'admin' ? getScanStatus(database) : undefined
             return context.render(
-              <SettingsPage member={member} members={members} error={error.message} />,
+              <SettingsPage
+                member={member}
+                members={members}
+                scanStatus={scanStatus}
+                error={error.message}
+              />,
             )
           }
           throw error

@@ -19,6 +19,7 @@ import {
   createSessionCookie,
 } from './modules/auth/index.ts'
 import type { AppConfig } from './modules/config/index.ts'
+import type { ScanAdapter } from './modules/library/index.ts'
 import { render } from './middleware/render.tsx'
 import { routes } from './routes.ts'
 
@@ -40,12 +41,14 @@ declare module 'remix/router' {
 export function createApp({
   config,
   database,
+  scanAdapter,
 }: {
   config: AppConfig
   database: AppDatabase
+  scanAdapter?: ScanAdapter
 }) {
   let passwordProvider = createMemberPasswordProvider(database)
-  let deps = { config, database, passwordProvider }
+  let deps = { config, database, passwordProvider, scanAdapter }
 
   let router = createRouter<AppContext>({
     middleware: [

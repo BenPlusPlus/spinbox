@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS scan_runs;
+DROP TABLE IF EXISTS tracks;

@@ -1,6 +1,6 @@
 # Spinbox
 
-Household self-hosted web music player. **This checkout is still mostly dev-only.** First Admin setup and cookie sign-in work; Library I/O and playback are not built yet.
+Household self-hosted web music player. **This checkout is still mostly dev-only.** First Admin setup, cookie sign-in, and Admin Library Scan runs work; media streaming and playback are not built yet.
 
 The app is a single-package [Remix 3](https://remix.run/) (`remix@next`) process. UI is `remix/ui`, not React. Auth is first-party `remix/auth` plus app-owned Household member tables — not Better Auth.
 
@@ -34,6 +34,6 @@ Production (`pnpm start`) fail-fasts unless `LIBRARY_ROOT`, `SPINBOX_DATA_DIR`, 
 
 ## Layout
 
-Remix entrypoints (`server.ts`, `app/routes.ts`, `app/router.ts`, `app/actions`, `app/middleware`, `app/assets`, `app/ui`) plus `app/modules/*` (`config` and `auth` are live; `library`, `media`, `playback`, `playlists` are stubs). SQLite connection and versioned migrations live in `app/data`.
+Remix entrypoints (`server.ts`, `app/routes.ts`, `app/router.ts`, `app/actions`, `app/middleware`, `app/assets`, `app/ui`) plus `app/modules/*` (`config`, `auth`, and `library` are live; `media`, `playback`, and `playlists` are stubs). SQLite connection and versioned migrations live in `app/data`. An Admin can start a Scan run from Settings. A CI fixture Library lives at `test/fixtures/library`.
 
 See [`docs/design/spinbox-v1.md`](docs/design/spinbox-v1.md) and [`CONTEXT.md`](CONTEXT.md).

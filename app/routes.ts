@@ -16,4 +16,5 @@ export const routes = route({
   memberEnable: { method: 'POST', pattern: '/settings/members/:id/enable' },
   memberHardDelete: { method: 'POST', pattern: '/settings/members/:id/hard-delete' },
   memberTemporaryPassword: { method: 'POST', pattern: '/settings/members/:id/temporary-password' },
+  scanNow: { method: 'POST', pattern: '/settings/scan' },
 })

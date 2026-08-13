@@ -166,6 +166,22 @@ describe('loadConfig', () => {
     assert.equal(config.publicUrl.origin, 'https://spinbox.example.ts.net')
     assert.equal(config.port, 44100)
     assert.equal(config.sessionSecret, 'test-session-secret-at-least-16')
+    assert.ok(config.libraryExtensions.includes('mp3'))
+    assert.ok(config.librarySkipDirs.some((name) => name.toLowerCase() === '@eadir'))
+    assert.deepEqual(config.libraryScanGlobs, [])
+  })
+
+  it('overrides Library membership lists from env', () => {
+    let config = loadConfig(
+      productionEnv({
+        LIBRARY_EXTENSIONS: 'mp3, flac',
+        LIBRARY_SKIP_DIRS: 'Artwork,Scans',
+        LIBRARY_SCAN_GLOBS: 'Radiohead/**',
+      }),
+    )
+    assert.deepEqual(config.libraryExtensions, ['mp3', 'flac'])
+    assert.deepEqual(config.librarySkipDirs, ['Artwork', 'Scans'])
+    assert.deepEqual(config.libraryScanGlobs, ['Radiohead/**'])
   })
 
   it('uses only SPINBOX_PUBLIC_URL for the origin, not Host or X-Forwarded-*', () => {

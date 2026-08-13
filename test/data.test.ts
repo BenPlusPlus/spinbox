@@ -57,6 +57,7 @@ describe('openDatabase', () => {
     assert.ok(applied.some((row) => row.name === 'household_members'))
     assert.ok(applied.some((row) => row.name === 'invites'))
     assert.ok(applied.some((row) => row.name === 'member_lifecycle'))
+    assert.ok(applied.some((row) => row.name === 'library_index'))
 
     let second = await openDatabase(config)
     try {
