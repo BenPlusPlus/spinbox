@@ -17,4 +17,5 @@ export const routes = route({
   memberHardDelete: { method: 'POST', pattern: '/settings/members/:id/hard-delete' },
   memberTemporaryPassword: { method: 'POST', pattern: '/settings/members/:id/temporary-password' },
   scanNow: { method: 'POST', pattern: '/settings/scan' },
+  mediaTrack: get('/media/tracks/:trackId'),
 })

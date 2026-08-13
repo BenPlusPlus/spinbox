@@ -36,6 +36,7 @@ import {
   startScan,
   type ScanAdapter,
 } from '../modules/library/index.ts'
+import { serveTrack } from '../modules/media/index.ts'
 import { routes } from '../routes.ts'
 import { InvitesPage } from '../ui/invites-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
@@ -124,6 +125,12 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
             }),
           )
         },
+      },
+      mediaTrack(context) {
+        return serveTrack(database, config, context.request, {
+          trackId: context.params.trackId,
+          member: signedInMember(context),
+        })
       },
       scanNow: {
         middleware: [requireSignedIn(config, database)],
