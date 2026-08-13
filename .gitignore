@@ -3,3 +3,7 @@
 Thumbs.db
 
 /.agents
+
+node_modules/
+tmp/
+.DS_Store
