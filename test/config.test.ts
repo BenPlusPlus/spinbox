@@ -22,6 +22,7 @@ function productionEnv(overrides: Record<string, string | undefined> = {}) {
     SPINBOX_DATA_DIR: dataDir,
     SPINBOX_PUBLIC_URL: 'https://spinbox.example.ts.net',
     PORT: '44100',
+    SESSION_SECRET: 'test-session-secret-at-least-16',
     ...overrides,
   }
 }
@@ -55,6 +56,28 @@ describe('loadConfig', () => {
       (error: unknown) => {
         assert.ok(error instanceof ConfigError)
         assert.match(error.message, /SPINBOX_PUBLIC_URL/)
+        return true
+      },
+    )
+  })
+
+  it('fails fast in production when SESSION_SECRET is missing', () => {
+    assert.throws(
+      () => loadConfig(productionEnv({ SESSION_SECRET: undefined })),
+      (error: unknown) => {
+        assert.ok(error instanceof ConfigError)
+        assert.match(error.message, /SESSION_SECRET/)
+        return true
+      },
+    )
+  })
+
+  it('fails fast when SESSION_SECRET is too short', () => {
+    assert.throws(
+      () => loadConfig(productionEnv({ SESSION_SECRET: 'short' })),
+      (error: unknown) => {
+        assert.ok(error instanceof ConfigError)
+        assert.match(error.message, /SESSION_SECRET/)
         return true
       },
     )
@@ -142,6 +165,7 @@ describe('loadConfig', () => {
     assert.equal(config.dataDir, dataDir)
     assert.equal(config.publicUrl.origin, 'https://spinbox.example.ts.net')
     assert.equal(config.port, 44100)
+    assert.equal(config.sessionSecret, 'test-session-secret-at-least-16')
   })
 
   it('uses only SPINBOX_PUBLIC_URL for the origin, not Host or X-Forwarded-*', () => {
@@ -171,5 +195,6 @@ describe('loadConfig', () => {
     assert.ok(path.isAbsolute(config.dataDir))
     assert.equal(config.port, 44100)
     assert.equal(config.publicUrl.origin, 'http://127.0.0.1:44100')
+    assert.ok(config.sessionSecret.length >= 16)
   })
 })

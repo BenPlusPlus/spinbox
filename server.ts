@@ -3,13 +3,15 @@ import { createRequestListener } from 'remix/node-fetch-server'
 
 import { openDatabase, type AppDatabase } from './app/data/index.ts'
 import { ConfigError, loadConfig, type AppConfig } from './app/modules/config/index.ts'
-import { router } from './app/router.ts'
+import { createApp } from './app/router.ts'
 
 let config: AppConfig
 let database: AppDatabase
+let app: ReturnType<typeof createApp>
 try {
   config = loadConfig()
   database = await openDatabase(config)
+  app = createApp({ config, database })
 } catch (error) {
   if (error instanceof ConfigError) {
     console.error(error.message)
@@ -22,7 +24,7 @@ try {
 const server = http.createServer(
   createRequestListener(async (request) => {
     try {
-      return await router.fetch(request)
+      return await app.fetch(request)
     } catch (error) {
       if (!(request.signal.aborted && error === request.signal.reason)) {
         console.error(error)

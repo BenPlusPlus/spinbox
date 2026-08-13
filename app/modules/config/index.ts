@@ -4,6 +4,8 @@ import * as path from 'node:path'
 const DEFAULT_PORT = 44100
 const DEFAULT_LIBRARY_ROOT = 'data/library'
 const DEFAULT_DATA_DIR = 'data/app'
+const DEFAULT_DEV_SESSION_SECRET = 'spinbox-dev-session-secret'
+const MIN_SESSION_SECRET_LENGTH = 16
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -17,6 +19,7 @@ export type AppConfig = {
   dataDir: string
   publicUrl: URL
   port: number
+  sessionSecret: string
 }
 
 export type EnvSource = Record<string, string | undefined>
@@ -44,6 +47,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
   )
   let port = readPort(env, development, problems)
   let publicUrl = readPublicUrl(env.SPINBOX_PUBLIC_URL, port, development, problems)
+  let sessionSecret = readSessionSecret(env.SESSION_SECRET, development, problems)
 
   if (libraryRoot && dataDir && isPathInside(dataDir, libraryRoot)) {
     problems.push('SPINBOX_DATA_DIR must not be under the Library (LIBRARY_ROOT)')
@@ -58,6 +62,7 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     dataDir: dataDir!,
     publicUrl: publicUrl!,
     port: port!,
+    sessionSecret: sessionSecret!,
   }
 }
 
@@ -147,6 +152,28 @@ function readPublicUrl(
   }
 
   return parsed
+}
+
+function readSessionSecret(
+  value: string | undefined,
+  development: boolean,
+  problems: string[],
+): string | undefined {
+  let trimmed = value?.trim()
+  if (!trimmed) {
+    if (development) {
+      return DEFAULT_DEV_SESSION_SECRET
+    }
+    problems.push('SESSION_SECRET is required')
+    return undefined
+  }
+
+  if (trimmed.length < MIN_SESSION_SECRET_LENGTH) {
+    problems.push(`SESSION_SECRET must be at least ${MIN_SESSION_SECRET_LENGTH} characters`)
+    return undefined
+  }
+
+  return trimmed
 }
 
 function isPathInside(inner: string, outer: string): boolean {

@@ -32,6 +32,7 @@ describe('openDatabase', () => {
       SPINBOX_DATA_DIR: dataDir,
       SPINBOX_PUBLIC_URL: 'https://spinbox.example.ts.net',
       PORT: '44100',
+      SESSION_SECRET: 'test-session-secret-at-least-16',
     })
   }
 
@@ -53,6 +54,7 @@ describe('openDatabase', () => {
       .all() as { id: string; name: string }[]
     assert.ok(applied.length >= 1)
     assert.ok(applied.some((row) => row.name === 'bootstrap'))
+    assert.ok(applied.some((row) => row.name === 'household_members'))
 
     let second = await openDatabase(config)
     try {
