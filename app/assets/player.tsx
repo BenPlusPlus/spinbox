@@ -396,6 +396,17 @@ export const PlayerIsland = clientEntry(
           fields[name] = value
         }
       }
+      if (fields.intent === 'update' && fields.playing === '0') {
+        view.playing = false
+        audio?.pause()
+        void handle.update()
+      } else if (fields.intent === 'update' && fields.playing === '1') {
+        view.playing = true
+        void audio?.play().catch(() => {
+          // Autoplay block is not an unplayable Track; media `error` handles non-2xx.
+        })
+        void handle.update()
+      }
       await postIntent(fields)
     }
 
@@ -417,9 +428,19 @@ export const PlayerIsland = clientEntry(
     }
 
     function applySnapshot(next: PlayerSnapshot) {
-      let previousId = view.currentTrack?.id ?? null
-      let nextId = next.currentTrack?.id ?? null
-      if (previousId && nextId && previousId !== nextId) {
+      let action = sameTrackAudioAction(
+        {
+          trackId: view.currentTrack?.id ?? null,
+          playing: view.playing,
+          playheadMs: view.playheadMs,
+        },
+        {
+          trackId: next.currentTrack?.id ?? null,
+          playing: next.playing,
+          playheadMs: next.playheadMs,
+        },
+      )
+      if (action === 'load') {
         swapping = true
         error = null
         retried = false
@@ -435,9 +456,8 @@ export const PlayerIsland = clientEntry(
         }, SWAP_MS)
         return
       }
-      let trackUnchanged = previousId === nextId
       view = { ...next }
-      if (!trackUnchanged) {
+      if (action === 'transport') {
         syncAudio(false)
       }
       void handle.update()
@@ -592,6 +612,19 @@ export function streamHref(href: string | null | undefined): string | null {
   }
   let hash = href.indexOf('#')
   return hash === -1 ? href : href.slice(0, hash)
+}
+
+export function sameTrackAudioAction(
+  previous: { trackId: string | null; playing: boolean; playheadMs: number },
+  next: { trackId: string | null; playing: boolean; playheadMs: number },
+): 'load' | 'transport' | 'none' {
+  if (previous.trackId !== next.trackId) {
+    return 'load'
+  }
+  if (previous.playing !== next.playing || Math.abs(previous.playheadMs - next.playheadMs) > 1250) {
+    return 'transport'
+  }
+  return 'none'
 }
 
 export function formatMs(ms: number): string {
