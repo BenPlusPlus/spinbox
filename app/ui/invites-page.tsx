@@ -3,24 +3,22 @@ import { css } from 'remix/ui'
 
 import type { Invite } from '../modules/auth/index.ts'
 import { routes } from '../routes.ts'
-import { Document } from './document.tsx'
+import { AppChrome, type ChromeState } from './app-chrome.tsx'
 
 export function InvitesPage(
   handle: Handle<{
     invites: Invite[]
     mintedUrl?: string
     error?: string
+    chrome?: ChromeState
   }>,
 ) {
   return () => {
-    let { invites, mintedUrl, error } = handle.props
+    let { invites, mintedUrl, error, chrome } = handle.props
 
     return (
-      <Document title="Invites · Spinbox">
-        <main mix={page}>
-          <p mix={crumb}>
-            <a href={routes.home.href()}>Library</a>
-          </p>
+      <AppChrome title="Invites · Spinbox" current="settings" chrome={chrome}>
+        <main>
           <h1 mix={heading}>Invites</h1>
           <p mix={copy}>
             Mint a single-use Invite. It expires after 7 days. Bind an email to lock who can accept,
@@ -63,29 +61,15 @@ export function InvitesPage(
             </ul>
           )}
         </main>
-      </Document>
+      </AppChrome>
     )
   }
 }
 
-let page = css({
-  minHeight: '100vh',
-  margin: 0,
-  padding: '2rem 1.5rem',
-  background: '#f4efe6',
-  color: '#1a1410',
-  fontFamily: 'Georgia, "Times New Roman", serif',
-})
-
-let crumb = css({
-  margin: '0 0 1rem',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.9rem',
-})
-
 let heading = css({
   margin: '0 0 0.5rem',
   fontSize: '2rem',
+  fontFamily: 'Fraunces, Georgia, serif',
 })
 
 let subheading = css({

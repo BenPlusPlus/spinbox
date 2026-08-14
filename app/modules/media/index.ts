@@ -8,7 +8,12 @@ import { createFileResponse } from 'remix/response/file'
 import type { AppDatabase } from '../../data/index.ts'
 import type { HouseholdMember } from '../auth/index.ts'
 import type { AppConfig } from '../config/index.ts'
-import { findTrackById, normalizeLibraryPath, type Track } from '../library/index.ts'
+import {
+  findTrackById,
+  isLibraryMountHealthy,
+  normalizeLibraryPath,
+  type Track,
+} from '../library/index.ts'
 
 export type StreamSource = {
   absolutePath: string
@@ -74,19 +79,6 @@ export async function serveTrack(
     etag: 'weak',
     acceptRanges: true,
   })
-}
-
-async function isLibraryMountHealthy(libraryRoot: string): Promise<boolean> {
-  try {
-    let stat = await fs.stat(libraryRoot)
-    if (!stat.isDirectory()) {
-      return false
-    }
-    await fs.readdir(libraryRoot)
-    return true
-  } catch {
-    return false
-  }
 }
 
 function notFound(): Response {

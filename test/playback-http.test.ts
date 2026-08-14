@@ -270,7 +270,10 @@ describe('Listening session HTTP', () => {
   })
 
   it('does not expose Playlist CRUD on the session actions', async () => {
-    assert.equal('playlists' in routes, false)
+    assert.ok(routes.playlists)
+    assert.equal(routes.session.method, 'POST')
+    assert.equal(routes.session.href(), '/session')
+    assert.doesNotMatch(routes.session.href(), /playlist/i)
   })
 })
 

@@ -4,7 +4,7 @@ import { css } from 'remix/ui'
 import type { HouseholdMember } from '../modules/auth/index.ts'
 import type { ScanStatus } from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
-import { Document } from './document.tsx'
+import { AppChrome, type ChromeState } from './app-chrome.tsx'
 
 export function SettingsPage(
   handle: Handle<{
@@ -13,17 +13,15 @@ export function SettingsPage(
     scanStatus?: ScanStatus
     error?: string
     notice?: string
+    chrome?: ChromeState
   }>,
 ) {
   return () => {
-    let { member, members, scanStatus, error, notice } = handle.props
+    let { member, members, scanStatus, error, notice, chrome } = handle.props
 
     return (
-      <Document title="Settings · Spinbox">
-        <main mix={page}>
-          <p mix={crumb}>
-            <a href={routes.home.href()}>Library</a>
-          </p>
+      <AppChrome title="Settings · Spinbox" current="settings" chrome={chrome}>
+        <main>
           <h1 mix={heading}>Settings</h1>
           <p mix={copy}>
             {member.mustChangePassword
@@ -174,7 +172,7 @@ export function SettingsPage(
             </button>
           </form>
         </main>
-      </Document>
+      </AppChrome>
     )
   }
 }
@@ -193,24 +191,10 @@ function scanStatusCopy(status: ScanStatus): string {
   return `Last Scan run: failed${result.error ? ` · ${result.error}` : ''}`
 }
 
-let page = css({
-  minHeight: '100vh',
-  margin: 0,
-  padding: '2rem 1.5rem',
-  background: '#f4efe6',
-  color: '#1a1410',
-  fontFamily: 'Georgia, "Times New Roman", serif',
-})
-
-let crumb = css({
-  margin: '0 0 1rem',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.9rem',
-})
-
 let heading = css({
   margin: '0 0 0.5rem',
   fontSize: '2rem',
+  fontFamily: 'Fraunces, Georgia, serif',
 })
 
 let subheading = css({

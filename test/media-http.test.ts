@@ -231,7 +231,10 @@ describe('authenticated range streaming', () => {
       }),
     )
     assert.equal(home.status, 200)
-    assert.match(await home.text(), /Library/)
+    let homeHtml = await home.text()
+    assert.match(homeHtml, /Library/)
+    assert.match(homeHtml, /Library storage is unavailable/)
+    assert.match(homeHtml, /Airbag/)
   })
 
   it('returns 401 for a dead session on every GET including ranges', async () => {

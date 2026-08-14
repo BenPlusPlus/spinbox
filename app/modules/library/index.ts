@@ -384,6 +384,19 @@ export async function startScan(
   return { ok: true, done }
 }
 
+export async function isLibraryMountHealthy(libraryRoot: string): Promise<boolean> {
+  try {
+    let stat = await fs.stat(libraryRoot)
+    if (!stat.isDirectory()) {
+      return false
+    }
+    await fs.readdir(libraryRoot)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function listTracks(database: AppDatabase): Track[] {
   let rows = database.sqlite
     .prepare(

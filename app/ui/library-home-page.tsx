@@ -5,20 +5,21 @@ import type { HouseholdMember } from '../modules/auth/index.ts'
 import type { Track } from '../modules/library/index.ts'
 import type { ListenResume, ListeningSession } from '../modules/playback/index.ts'
 import { routes } from '../routes.ts'
-import { Document } from './document.tsx'
+import { AppChrome, type ChromeState } from './app-chrome.tsx'
 
-let page = css({
-  minHeight: '100vh',
-  margin: 0,
-  padding: '2rem 1.5rem 4rem',
-  background: '#f4efe6',
-  color: '#1a1410',
-  fontFamily: 'Georgia, "Times New Roman", serif',
+let empty = css({
+  margin: '0 0 2rem',
+  padding: '1.1rem 1.15rem',
+  maxWidth: '28rem',
+  background: '#fffdf7',
+  border: '1px solid #e0d3bf',
+  borderRadius: '2px',
 })
 
 let heading = css({
   margin: '0 0 0.5rem',
   fontSize: '2rem',
+  fontFamily: 'Fraunces, Georgia, serif',
 })
 
 let subheading = css({
@@ -37,16 +38,6 @@ let errorBox = css({
   margin: '0 0 1rem',
   maxWidth: '36rem',
   color: '#8a2a2a',
-})
-
-let player = css({
-  margin: '0 0 1.5rem',
-  maxWidth: '36rem',
-})
-
-let audio = css({
-  width: '100%',
-  marginTop: '0.75rem',
 })
 
 let list = css({
@@ -85,15 +76,6 @@ let button = css({
   cursor: 'pointer',
 })
 
-let signOut = css({
-  padding: '0.55rem 0.8rem',
-  border: '1px solid #1a1410',
-  borderRadius: '2px',
-  background: 'transparent',
-  fontFamily: 'system-ui, sans-serif',
-  cursor: 'pointer',
-})
-
 export function LibraryHomePage(
   handle: Handle<{
     member: HouseholdMember
@@ -101,11 +83,12 @@ export function LibraryHomePage(
     tracks: Track[]
     recentlyPlayed: Track[]
     resume: ListenResume
+    chrome?: ChromeState
     error?: string
   }>,
 ) {
   return () => {
-    let { member, session, tracks, recentlyPlayed, resume, error } = handle.props
+    let { member, session, tracks, recentlyPlayed, resume, chrome, error } = handle.props
     let greeting = member.displayName ?? member.email
     let albums = groupTracks(tracks, (track) => `${track.albumArtist}\0${track.album}`, (track) => ({
       heading: `${track.album} — ${track.albumArtist}`,
@@ -113,40 +96,50 @@ export function LibraryHomePage(
     let artists = groupTracks(tracks, (track) => track.artist, (track) => ({
       heading: track.artist,
     }))
-    let current = session.currentTrack
-    let mediaHref = current ? mediaSrc(current.id, session.playheadMs) : null
 
     return (
-      <Document title="Library · Spinbox">
-        <main mix={page}>
+      <AppChrome title="Library · Spinbox" current="library" chrome={chrome}>
+        <main>
           <h1 mix={heading}>Library</h1>
           <p mix={copy}>
             Welcome, {greeting}. Play a Track into your Listening session. The Play queue is not a
             Playlist.
           </p>
           {error ? <p mix={errorBox}>{error}</p> : null}
-          <p mix={copy}>
-            <a href={routes.settings.index.href()}>Settings</a>
-            {member.role === 'admin' ? (
-              <>
-                {' · '}
-                <a href={routes.invites.index.href()}>Invites</a>
-              </>
-            ) : null}
-          </p>
 
-          {resume.lastActiveTrack ? (
-            <form method="POST" action={routes.session.href()}>
-              <input type="hidden" name="intent" value="continue" />
-              <button mix={button} type="submit">
-                Continue · {resume.lastActiveTrack.title}
-              </button>
-            </form>
+          {tracks.length === 0 ? (
+            <section mix={empty}>
+              <p mix={copy}>The Library index is empty. Nothing to browse yet.</p>
+              {member.role === 'admin' ? (
+                <form method="POST" action={routes.scanNow.href()}>
+                  <input type="hidden" name="next" value={routes.home.href()} />
+                  <button mix={button} type="submit">
+                    Scan now
+                  </button>
+                </form>
+              ) : (
+                <p mix={copy}>The Library is empty — ask an Admin to run a Scan run.</p>
+              )}
+            </section>
           ) : null}
 
-          {recentlyPlayed.length > 0 ? (
-            <>
-              <h2 mix={subheading}>Recently played</h2>
+          <section>
+            <h2 mix={subheading}>Continue</h2>
+            {resume.lastActiveTrack ? (
+              <form method="POST" action={routes.session.href()}>
+                <input type="hidden" name="intent" value="continue" />
+                <button mix={button} type="submit">
+                  Continue · {resume.lastActiveTrack.title}
+                </button>
+              </form>
+            ) : (
+              <p mix={copy}>No last-active Track to resume yet.</p>
+            )}
+          </section>
+
+          <section>
+            <h2 mix={subheading}>Recently played</h2>
+            {recentlyPlayed.length > 0 ? (
               <ol mix={list}>
                 {recentlyPlayed.map((track) => (
                   <li mix={item} key={track.id}>
@@ -158,102 +151,78 @@ export function LibraryHomePage(
                   </li>
                 ))}
               </ol>
-            </>
-          ) : null}
-
-          <section mix={player}>
-            <h2 mix={subheading}>Now playing</h2>
-            {current && mediaHref ? (
-              <>
-                <p>
-                  Now playing · {current.title}
-                  {session.playing ? '' : ' (paused)'}
-                  {session.shuffle ? ' · shuffle' : ''}
-                  {session.repeat === 'off' ? '' : ` · repeat ${session.repeat}`}
-                </p>
-                <audio mix={audio} controls src={mediaHref} preload="metadata"></audio>
-              </>
             ) : (
-              <p mix={copy}>Nothing is playing. Choose a Track below.</p>
+              <p mix={copy}>No Recently played Tracks yet.</p>
             )}
           </section>
 
-          <h2 mix={subheading}>Play queue</h2>
-          {session.queue.length === 0 ? (
-            <p mix={copy}>Nothing queued.</p>
-          ) : (
-            <ol mix={list}>
-              {session.queue.map((track) => (
-                <li mix={item} key={track.id}>
-                  <span mix={title}>
-                    {track.title} — {track.artist}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-
-          <h2 mix={subheading}>Albums</h2>
-          <ul mix={list}>
-            {albums.map((album) => (
-              <li key={album.key}>
-                <div mix={item}>
-                  <span mix={title}>{album.heading}</span>
-                  {playContainerButton('Play album', album.tracks, 0)}
-                </div>
-                <ul mix={list}>
-                  {album.tracks.map((track, index) => (
+          {tracks.length === 0 ? null : (
+            <>
+              <h2 mix={subheading}>Play queue</h2>
+              {session.queue.length === 0 ? (
+                <p mix={copy}>Nothing in the Play queue.</p>
+              ) : (
+                <ol mix={list}>
+                  {session.queue.map((track) => (
                     <li mix={item} key={track.id}>
-                      <span mix={title}>{track.title}</span>
-                      {playContainerButton('Play', album.tracks, index)}
-                      {queueButtons(track.id)}
+                      <span mix={title}>
+                        {track.title} — {track.artist}
+                      </span>
                     </li>
                   ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
+                </ol>
+              )}
 
-          <h2 mix={subheading}>Artists</h2>
-          <ul mix={list}>
-            {artists.map((artist) => (
-              <li mix={item} key={artist.key}>
-                <span mix={title}>{artist.heading}</span>
-                {playContainerButton('Play artist', artist.tracks, 0)}
-              </li>
-            ))}
-          </ul>
+              <h2 mix={subheading}>Albums</h2>
+              <ul mix={list}>
+                {albums.map((album) => (
+                  <li key={album.key}>
+                    <div mix={item}>
+                      <span mix={title}>{album.heading}</span>
+                      {playContainerButton('Play album', album.tracks, 0)}
+                    </div>
+                    <ul mix={list}>
+                      {album.tracks.map((track, index) => (
+                        <li mix={item} key={track.id}>
+                          <span mix={title}>{track.title}</span>
+                          {playContainerButton('Play', album.tracks, index)}
+                          {queueButtons(track.id)}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
 
-          <h2 mix={subheading}>Tracks</h2>
-          <ul mix={list}>
-            {tracks.map((track) => (
-              <li mix={item} key={track.id}>
-                <span mix={title}>
-                  {track.title} — {track.artist}
-                </span>
-                {lonePlayButton(track.id)}
-                {queueButtons(track.id)}
-              </li>
-            ))}
-          </ul>
+              <h2 mix={subheading}>Artists</h2>
+              <ul mix={list}>
+                {artists.map((artist) => (
+                  <li mix={item} key={artist.key}>
+                    <span mix={title}>{artist.heading}</span>
+                    {playContainerButton('Play artist', artist.tracks, 0)}
+                  </li>
+                ))}
+              </ul>
 
-          <form method="POST" action={routes.logout.href()}>
-            <button mix={signOut} type="submit">
-              Sign out
-            </button>
-          </form>
+              <h2 mix={subheading}>Tracks</h2>
+              <ul mix={list}>
+                {tracks.map((track) => (
+                  <li mix={item} key={track.id}>
+                    <span mix={title}>
+                      {track.title} — {track.artist}
+                    </span>
+                    {lonePlayButton(track.id)}
+                    {queueButtons(track.id)}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
         </main>
-      </Document>
+      </AppChrome>
     )
   }
-}
-
-function mediaSrc(trackId: string, playheadMs: number): string {
-  let href = routes.mediaTrack.href({ trackId })
-  if (playheadMs <= 0) {
-    return href
-  }
-  return `${href}#t=${playheadMs / 1000}`
 }
 
 function lonePlayButton(trackId: string): RemixNode {

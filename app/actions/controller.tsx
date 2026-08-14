@@ -32,6 +32,7 @@ import {
 import { publicOrigin, type AppConfig } from '../modules/config/index.ts'
 import {
   getScanStatus,
+  isLibraryMountHealthy,
   LibraryError,
   listTracks,
   startScan,
@@ -51,10 +52,13 @@ import {
   type RepeatMode,
 } from '../modules/playback/index.ts'
 import { routes } from '../routes.ts'
+import { mediaHrefFor } from '../ui/app-chrome.tsx'
 import { InvitesPage } from '../ui/invites-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
 import { LibraryHomePage } from '../ui/library-home-page.tsx'
 import { LoginPage } from '../ui/login-page.tsx'
+import { PlaylistsPage } from '../ui/playlists-page.tsx'
+import { SearchPage } from '../ui/search-page.tsx'
 import { SettingsPage } from '../ui/settings-page.tsx'
 import { SetupPage } from '../ui/setup-page.tsx'
 
@@ -75,7 +79,7 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
       },
       home: {
         middleware: [requireSignedIn(config, database)],
-        handler(context) {
+        async handler(context) {
           let member = signedInOrThrow(context)
           let forced = passwordChangeRedirect(config, member)
           if (forced) {
@@ -89,7 +93,36 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
               tracks={listTracks(database)}
               recentlyPlayed={listRecentlyPlayed(database, member)}
               resume={getListenResume(database, member)}
+              chrome={await loadChrome(config, database, member)}
               error={typeof error === 'string' ? error : undefined}
+            />,
+          )
+        },
+      },
+      playlists: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          let member = signedInOrThrow(context)
+          let forced = passwordChangeRedirect(config, member)
+          if (forced) {
+            return forced
+          }
+          return context.render(<PlaylistsPage chrome={await loadChrome(config, database, member)} />)
+        },
+      },
+      search: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          let member = signedInOrThrow(context)
+          let forced = passwordChangeRedirect(config, member)
+          if (forced) {
+            return forced
+          }
+          let query = new URL(context.request.url).searchParams.get('q') ?? ''
+          return context.render(
+            <SearchPage
+              query={query.trim()}
+              chrome={await loadChrome(config, database, member)}
             />,
           )
         },
@@ -182,12 +215,12 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
           } catch (error) {
             if (error instanceof LibraryError) {
               context.get(Session).flash('error', error.message)
-              return publicRedirect(config, routes.settings.index.href())
+              return publicRedirect(config, scanReturnTo(context))
             }
             throw error
           }
 
-          return publicRedirect(config, routes.settings.index.href())
+          return publicRedirect(config, scanReturnTo(context))
         },
       },
       inviteRevoke: {
@@ -254,6 +287,7 @@ export function createInvitesController({ config, database }: AppDeps) {
             invites={invites}
             mintedUrl={typeof mintedUrl === 'string' ? mintedUrl : undefined}
             error={typeof error === 'string' ? error : undefined}
+            chrome={await loadChrome(config, database, member)}
           />,
         )
       },
@@ -281,7 +315,13 @@ export function createInvitesController({ config, database }: AppDeps) {
         } catch (error) {
           if (error instanceof AuthError) {
             let invites = await listInvites(database, member)
-            return context.render(<InvitesPage invites={invites} error={error.message} />)
+            return context.render(
+              <InvitesPage
+                invites={invites}
+                error={error.message}
+                chrome={await loadChrome(config, database, member)}
+              />,
+            )
           }
           throw error
         }
@@ -419,6 +459,7 @@ export function createSettingsController({ config, database }: AppDeps) {
             scanStatus={scanStatus}
             error={typeof error === 'string' ? error : undefined}
             notice={typeof notice === 'string' ? notice : undefined}
+            chrome={await loadChrome(config, database, member)}
           />,
         )
       },
@@ -454,6 +495,7 @@ export function createSettingsController({ config, database }: AppDeps) {
                 members={members}
                 scanStatus={scanStatus}
                 error={error.message}
+                chrome={await loadChrome(config, database, member)}
               />,
             )
           }
@@ -462,6 +504,25 @@ export function createSettingsController({ config, database }: AppDeps) {
       },
     },
   })
+}
+
+async function loadChrome(config: AppConfig, database: AppDatabase, member: HouseholdMember) {
+  let session = getListeningSession(database, member)
+  let current = session.currentTrack
+  return {
+    libraryHealthy: await isLibraryMountHealthy(config.libraryRoot),
+    currentTrack: current,
+    playing: session.playing,
+    mediaHref: current ? mediaHrefFor(current.id, session.playheadMs) : null,
+  }
+}
+
+function scanReturnTo(context: { get: (key: any) => any }): string {
+  let next = String(context.get(FormData).get('next') ?? '')
+  if (next === routes.home.href()) {
+    return next
+  }
+  return routes.settings.index.href()
 }
 
 function passwordChangeRedirect(config: AppConfig, member: HouseholdMember) {
