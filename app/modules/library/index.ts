@@ -485,6 +485,36 @@ export function findArtistByKey(database: AppDatabase, key: string): ArtistGroup
   return buildArtistGroup(tracks, artist)
 }
 
+export type LibrarySearchResults = {
+  tracks: Track[]
+  albums: AlbumGroup[]
+  artists: ArtistGroup[]
+}
+
+export function searchLibrary(database: AppDatabase, query: string): LibrarySearchResults {
+  let needle = query.trim().toLowerCase()
+  if (!needle) {
+    return { tracks: [], albums: [], artists: [] }
+  }
+
+  let tracks = listTracks(database)
+  let matches = (value: string) => value.toLowerCase().includes(needle)
+
+  return {
+    tracks: tracks.filter(
+      (track) =>
+        matches(track.title) ||
+        matches(track.artist) ||
+        matches(track.album) ||
+        matches(track.albumArtist),
+    ),
+    albums: groupAlbums(tracks).filter(
+      (album) => matches(album.album) || matches(album.albumArtist),
+    ),
+    artists: groupArtists(tracks).filter((artist) => matches(artist.artist)),
+  }
+}
+
 export function tracksForArtistPlay(artist: ArtistGroup): Track[] {
   let seen = new Set<string>()
   let ordered: Track[] = []

@@ -39,6 +39,7 @@ import {
   listAlbums,
   listArtists,
   listTracks,
+  searchLibrary,
   startScan,
   type ScanAdapter,
 } from '../modules/library/index.ts'
@@ -164,9 +165,13 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
             return forced
           }
           let query = (new URL(context.request.url).searchParams.get('q') ?? '').trim()
+          let results = query ? searchLibrary(database, query) : { tracks: [], albums: [], artists: [] }
           return context.render(
             <SearchPage
               query={query}
+              tracks={results.tracks}
+              albums={results.albums}
+              artists={results.artists}
               playlists={query ? searchOwnPlaylists(database, member, query) : []}
               chrome={await loadChrome(config, database, member)}
             />,

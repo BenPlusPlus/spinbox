@@ -28,6 +28,7 @@ import {
   listArtists,
   listTracks,
   resolveTrackMetadata,
+  searchLibrary,
   startScan,
   type ScanAdapter,
   type StartScanResult,
@@ -616,6 +617,154 @@ describe('Library browse groupings', () => {
       ['Now 1'],
     )
     assert.equal(findArtistByKey(db, artistGroupingKey('Missing')), null)
+  })
+})
+
+describe('Library search', () => {
+  let tempRoot: string | undefined
+  let database: AppDatabase | undefined
+
+  afterEach(async () => {
+    database?.close()
+    database = undefined
+    if (tempRoot) {
+      await fs.rm(tempRoot, { recursive: true, force: true })
+      tempRoot = undefined
+    }
+  })
+
+  async function freshIndex() {
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'spinbox-search-'))
+    let config = loadConfig({
+      NODE_ENV: 'production',
+      LIBRARY_ROOT: path.join(tempRoot, 'library'),
+      SPINBOX_DATA_DIR: path.join(tempRoot, 'app-data'),
+      SPINBOX_PUBLIC_URL: 'https://spinbox.example.ts.net',
+      PORT: '44100',
+      SESSION_SECRET: 'test-session-secret-at-least-16',
+    })
+    await fs.mkdir(config.libraryRoot, { recursive: true })
+    database = await openDatabase(config)
+    return database
+  }
+
+  it('matches Track title, Artist, Album, and Album artist and groups with browse strings', async () => {
+    let db = await freshIndex()
+    insertIndexedTrack(db, {
+      id: 'hey-you',
+      path: 'Pink Floyd/The Wall/Disc 2/01 - Hey You.flac',
+      title: 'Hey You',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 2,
+      trackNumber: 1,
+    })
+    insertIndexedTrack(db, {
+      id: 'flesh',
+      path: 'Pink Floyd/The Wall/Disc 1/01 - In the Flesh.flac',
+      title: 'In the Flesh',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 1,
+      trackNumber: 1,
+    })
+    insertIndexedTrack(db, {
+      id: 'airbag',
+      path: 'Radiohead/OK Computer/01 - Airbag.mp3',
+      title: 'Airbag',
+      artist: 'Radiohead',
+      album: 'OK Computer',
+      albumArtist: 'Radiohead',
+    })
+    insertIndexedTrack(db, {
+      id: 'guest',
+      path: 'Various Artists/Now 1/01 - Guest Hit.m4a',
+      title: 'Guest Hit',
+      artist: 'Blur',
+      album: 'Now 1',
+      albumArtist: 'Various Artists',
+    })
+
+    let byTitle = searchLibrary(db, 'airbag')
+    assert.deepEqual(
+      byTitle.tracks.map((track) => track.title),
+      ['Airbag'],
+    )
+    assert.deepEqual(byTitle.albums, [])
+    assert.deepEqual(byTitle.artists, [])
+
+    let byAlbum = searchLibrary(db, 'OK Computer')
+    assert.deepEqual(
+      byAlbum.tracks.map((track) => track.title),
+      ['Airbag'],
+    )
+    assert.deepEqual(
+      byAlbum.albums.map((album) => `${album.albumArtist} / ${album.album}`),
+      ['Radiohead / OK Computer'],
+    )
+    assert.equal(byAlbum.albums[0]!.key, albumGroupingKey('Radiohead', 'OK Computer'))
+    assert.deepEqual(byAlbum.artists, [])
+
+    let byArtist = searchLibrary(db, 'radiohead')
+    assert.deepEqual(
+      byArtist.tracks.map((track) => track.title),
+      ['Airbag'],
+    )
+    assert.deepEqual(
+      byArtist.albums.map((album) => album.album),
+      ['OK Computer'],
+    )
+    assert.deepEqual(
+      byArtist.artists.map((artist) => artist.artist),
+      ['Radiohead'],
+    )
+    assert.equal(byArtist.artists[0]!.key, artistGroupingKey('Radiohead'))
+
+    let byAlbumArtist = searchLibrary(db, 'various')
+    assert.deepEqual(
+      byAlbumArtist.tracks.map((track) => track.title),
+      ['Guest Hit'],
+    )
+    assert.deepEqual(
+      byAlbumArtist.albums.map((album) => `${album.albumArtist} / ${album.album}`),
+      ['Various Artists / Now 1'],
+    )
+    assert.deepEqual(
+      byAlbumArtist.artists.map((artist) => artist.artist),
+      ['Various Artists'],
+    )
+
+    let byTrackArtist = searchLibrary(db, 'Blur')
+    assert.deepEqual(
+      byTrackArtist.tracks.map((track) => track.title),
+      ['Guest Hit'],
+    )
+    assert.deepEqual(byTrackArtist.albums, [])
+    assert.deepEqual(
+      byTrackArtist.artists.map((artist) => artist.artist),
+      ['Blur'],
+    )
+    assert.deepEqual(byTrackArtist.artists[0]!.albums, [])
+
+    let byAlbumName = searchLibrary(db, 'wall')
+    assert.deepEqual(
+      byAlbumName.tracks.map((track) => track.title),
+      ['In the Flesh', 'Hey You'],
+    )
+    assert.deepEqual(
+      byAlbumName.albums.map((album) => album.album),
+      ['The Wall'],
+    )
+    assert.deepEqual(
+      byAlbumName.albums[0]!.tracks.map((track) => track.title),
+      ['In the Flesh', 'Hey You'],
+    )
+    assert.deepEqual(byAlbumName.artists, [])
+
+    assert.deepEqual(searchLibrary(db, '   '), { tracks: [], albums: [], artists: [] })
+    assert.deepEqual(searchLibrary(db, 'nope'), { tracks: [], albums: [], artists: [] })
   })
 })
 

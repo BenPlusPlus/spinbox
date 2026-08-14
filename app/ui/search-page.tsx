@@ -1,19 +1,39 @@
 import type { Handle } from 'remix/ui'
 import { css } from 'remix/ui'
 
+import {
+  tracksForArtistPlay,
+  type AlbumGroup,
+  type ArtistGroup,
+  type Track,
+} from '../modules/library/index.ts'
 import type { PlaylistSummary } from '../modules/playlists/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
+import { artworkPlaceholder, lonePlayButton, playContainerButton } from './library-play.tsx'
+import { TrackMenu } from '../assets/track-menu.tsx'
 
 export function SearchPage(
   handle: Handle<{
     query?: string
+    tracks?: Track[]
+    albums?: AlbumGroup[]
+    artists?: ArtistGroup[]
     playlists?: PlaylistSummary[]
     chrome?: ChromeState
   }>,
 ) {
   return () => {
-    let { query = '', playlists = [], chrome } = handle.props
+    let {
+      query = '',
+      tracks = [],
+      albums = [],
+      artists = [],
+      playlists = [],
+      chrome,
+    } = handle.props
+    let next = query ? `${routes.search.href()}?q=${encodeURIComponent(query)}` : routes.search.href()
+    let hasResults = tracks.length + albums.length + artists.length + playlists.length > 0
 
     return (
       <AppChrome title="Search · Spinbox" current="search" chrome={chrome}>
@@ -36,21 +56,84 @@ export function SearchPage(
             </button>
           </form>
           {query ? (
-            playlists.length > 0 ? (
-              <section>
-                <h2 mix={subheading}>Your playlists</h2>
-                <ul mix={list}>
-                  {playlists.map((playlist) => (
-                    <li mix={item} key={playlist.id}>
-                      <a mix={link} href={routes.playlist.index.href({ id: playlist.id })}>
-                        {playlist.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+            hasResults ? (
+              <>
+                {tracks.length > 0 ? (
+                  <section>
+                    <h2 mix={subheading}>Tracks</h2>
+                    <ul mix={list}>
+                      {tracks.map((track) => (
+                        <li mix={item} key={track.id}>
+                          <span mix={title}>
+                            {track.title} — {track.artist}
+                          </span>
+                          {lonePlayButton(track.id, next)}
+                          <TrackMenu trackId={track.id} next={next} playlists={chrome?.playlists} />
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+                {albums.length > 0 ? (
+                  <section>
+                    <h2 mix={subheading}>Albums</h2>
+                    <ul mix={cardList}>
+                      {albums.map((album) => (
+                        <li mix={card} key={album.key}>
+                          {artworkPlaceholder(album.album)}
+                          <div mix={cardBody}>
+                            <a
+                              mix={link}
+                              href={routes.libraryAlbum.href({ albumKey: album.key })}
+                            >
+                              {album.album}
+                            </a>
+                            <p mix={meta}>{album.albumArtist}</p>
+                          </div>
+                          {playContainerButton('Play', album.tracks, 0, { next })}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+                {artists.length > 0 ? (
+                  <section>
+                    <h2 mix={subheading}>Artists</h2>
+                    <ul mix={cardList}>
+                      {artists.map((artist) => (
+                        <li mix={card} key={artist.key}>
+                          {artworkPlaceholder(artist.artist)}
+                          <div mix={cardBody}>
+                            <a
+                              mix={link}
+                              href={routes.libraryArtist.href({ artistKey: artist.key })}
+                            >
+                              {artist.artist}
+                            </a>
+                          </div>
+                          {playContainerButton('Play', tracksForArtistPlay(artist), 0, { next })}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+                {playlists.length > 0 ? (
+                  <section>
+                    <h2 mix={subheading}>Your playlists</h2>
+                    <ul mix={list}>
+                      {playlists.map((playlist) => (
+                        <li mix={item} key={playlist.id}>
+                          <a mix={link} href={routes.playlist.index.href({ id: playlist.id })}>
+                            {playlist.name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </>
             ) : (
-              <p mix={copy}>No grouped results yet for “{query}”.</p>
+              <p mix={copy}>No matching Tracks, Albums, Artists, or Playlists for “{query}”.</p>
             )
           ) : (
             <p mix={copy}>Search Tracks, Artists, Albums, and your Playlists.</p>
@@ -119,12 +202,48 @@ let list = css({
   margin: 0,
   padding: 0,
   listStyle: 'none',
-  maxWidth: '36rem',
+  maxWidth: '40rem',
 })
 
 let item = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'baseline',
+  gap: '0.4rem 0.65rem',
   padding: '0.45rem 0',
   borderBottom: '1px solid #e0d6c8',
+})
+
+let title = css({
+  flex: '1 1 12rem',
+})
+
+let cardList = css({
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+  display: 'grid',
+  gap: '0.65rem',
+  maxWidth: '40rem',
+})
+
+let card = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.85rem',
+  padding: '0.55rem 0.15rem',
+  borderBottom: '1px solid #e0d6c8',
+})
+
+let cardBody = css({
+  flex: '1 1 12rem',
+  minWidth: 0,
+})
+
+let meta = css({
+  margin: '0.15rem 0 0',
+  color: '#6b5646',
+  fontSize: '0.92rem',
 })
 
 let link = css({
