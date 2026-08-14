@@ -9,6 +9,11 @@ export type ChromeDestination = 'library' | 'playlists' | 'search' | 'settings' 
 
 export type ChromeTrack = PlayerTrack
 
+export type ChromePlaylist = {
+  id: string
+  name: string
+}
+
 export type ChromeState = {
   libraryHealthy: boolean
   currentTrack: ChromeTrack | null
@@ -18,6 +23,7 @@ export type ChromeState = {
   shuffle?: boolean
   repeat?: PlayerRepeat
   queue?: ChromeTrack[]
+  playlists?: ChromePlaylist[]
 }
 
 export type AppChromeProps = {
@@ -50,7 +56,7 @@ export function AppChrome(handle: Handle<AppChromeProps>) {
             </a>
             <nav mix={sideNav}>
               {sideLink('library', current, routes.home.href(), 'Library')}
-              {sideLink('playlists', current, routes.playlists.href(), 'Playlists')}
+              {sideLink('playlists', current, routes.playlists.index.href(), 'Playlists')}
               {sideLink('settings', current, routes.settings.index.href(), 'Settings')}
             </nav>
           </aside>
@@ -103,7 +109,7 @@ export function AppChrome(handle: Handle<AppChromeProps>) {
 
               <nav mix={tabs} aria-label="Tabs">
                 {tabLink('library', current, routes.home.href(), 'Library')}
-                {tabLink('playlists', current, routes.playlists.href(), 'Playlists')}
+                {tabLink('playlists', current, routes.playlists.index.href(), 'Playlists')}
                 {tabLink('search', current, routes.search.href(), 'Search')}
                 {tabLink('settings', current, routes.settings.index.href(), 'Settings')}
               </nav>

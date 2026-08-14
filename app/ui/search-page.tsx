@@ -1,17 +1,19 @@
 import type { Handle } from 'remix/ui'
 import { css } from 'remix/ui'
 
+import type { PlaylistSummary } from '../modules/playlists/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
 
 export function SearchPage(
   handle: Handle<{
     query?: string
+    playlists?: PlaylistSummary[]
     chrome?: ChromeState
   }>,
 ) {
   return () => {
-    let { query = '', chrome } = handle.props
+    let { query = '', playlists = [], chrome } = handle.props
 
     return (
       <AppChrome title="Search · Spinbox" current="search" chrome={chrome}>
@@ -25,7 +27,7 @@ export function SearchPage(
                 type="search"
                 name="q"
                 value={query}
-                placeholder="Tracks, Artists, Albums"
+                placeholder="Tracks, Artists, Albums, Playlists"
                 autoComplete="off"
               />
             </label>
@@ -34,9 +36,24 @@ export function SearchPage(
             </button>
           </form>
           {query ? (
-            <p mix={copy}>No grouped results yet for “{query}”.</p>
+            playlists.length > 0 ? (
+              <section>
+                <h2 mix={subheading}>Your playlists</h2>
+                <ul mix={list}>
+                  {playlists.map((playlist) => (
+                    <li mix={item} key={playlist.id}>
+                      <a mix={link} href={routes.playlist.index.href({ id: playlist.id })}>
+                        {playlist.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : (
+              <p mix={copy}>No grouped results yet for “{query}”.</p>
+            )
           ) : (
-            <p mix={copy}>Search Tracks, Artists, Albums, and later your Playlists.</p>
+            <p mix={copy}>Search Tracks, Artists, Albums, and your Playlists.</p>
           )}
         </main>
       </AppChrome>
@@ -48,6 +65,11 @@ let heading = css({
   margin: '0 0 0.5rem',
   fontSize: '2rem',
   fontFamily: 'Fraunces, Georgia, serif',
+})
+
+let subheading = css({
+  margin: '1.5rem 0 0.6rem',
+  fontSize: '1.15rem',
 })
 
 let copy = css({
@@ -91,4 +113,25 @@ let submit = css({
   fontFamily: '"Source Sans 3", sans-serif',
   fontWeight: 600,
   cursor: 'pointer',
+})
+
+let list = css({
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+  maxWidth: '36rem',
+})
+
+let item = css({
+  padding: '0.45rem 0',
+  borderBottom: '1px solid #e0d6c8',
+})
+
+let link = css({
+  color: '#1c120c',
+  fontWeight: 600,
+  textDecoration: 'none',
+  '&:hover': {
+    textDecoration: 'underline',
+  },
 })

@@ -58,7 +58,7 @@ export function AlbumDetailPage(
                 </span>
                 <span mix={title}>{track.title}</span>
                 {playContainerButton('Play', album.tracks, index, { next })}
-                <TrackMenu trackId={track.id} next={next} />
+                <TrackMenu trackId={track.id} next={next} playlists={chrome?.playlists} />
               </li>
             ))}
           </ol>

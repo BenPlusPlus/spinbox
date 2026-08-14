@@ -1,10 +1,10 @@
 import { clientEntry, on, type Handle } from 'remix/ui'
 
-import { trackActions } from '../ui/library-play.tsx'
+import { trackActions, type PlaylistChoice } from '../ui/library-play.tsx'
 
 export const TrackMenu = clientEntry(
   import.meta.url,
-  function TrackMenu(handle: Handle<{ trackId: string; next?: string }>) {
+  function TrackMenu(handle: Handle<{ trackId: string; next?: string; playlists?: PlaylistChoice[] }>) {
     let hold: number | null = null
 
     function openMenu(host: EventTarget | null) {
@@ -51,7 +51,7 @@ export const TrackMenu = clientEntry(
           }),
         ]}
       >
-        {trackActions(handle.props.trackId, handle.props.next)}
+        {trackActions(handle.props.trackId, handle.props.next, handle.props.playlists)}
       </div>
     )
   },

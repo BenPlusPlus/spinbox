@@ -60,7 +60,7 @@ describe('app chrome after sign-in', () => {
     assert.match(html, /aria-label="Sidebar"/i)
     assert.match(html, /aria-label="Tabs"/i)
     assert.match(html, new RegExp(`href="${escapeRegExp(routes.home.href())}"`))
-    assert.match(html, new RegExp(`href="${escapeRegExp(routes.playlists.href())}"`))
+    assert.match(html, new RegExp(`href="${escapeRegExp(routes.playlists.index.href())}"`))
     assert.match(html, new RegExp(`href="${escapeRegExp(routes.settings.index.href())}"`))
     assert.match(html, new RegExp(`href="${escapeRegExp(routes.search.href())}"`))
     assert.doesNotMatch(html, /<a href="\/now-playing">Now playing/)
@@ -182,7 +182,7 @@ describe('app chrome after sign-in', () => {
     assert.doesNotMatch(settingsHtml, /aria-label="Tabs"[\s\S]*?<a[^>]*>Now playing</)
 
     let playlists = await app.fetch(
-      new Request('http://evil.example' + routes.playlists.href(), {
+      new Request('http://evil.example' + routes.playlists.index.href(), {
         headers: { Cookie: cookie },
       }),
     )

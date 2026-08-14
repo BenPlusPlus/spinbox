@@ -62,6 +62,18 @@ import {
   type ListeningSession,
   type RepeatMode,
 } from '../modules/playback/index.ts'
+import {
+  addTrackToPlaylist,
+  createPlaylist,
+  deletePlaylist,
+  getPlaylist,
+  listPlaylists,
+  PlaylistError,
+  removePlaylistEntry,
+  renamePlaylist,
+  reorderPlaylistEntry,
+  searchOwnPlaylists,
+} from '../modules/playlists/index.ts'
 import { routes } from '../routes.ts'
 import { snapshotFromSession, type PlayerTrack } from '../assets/player.tsx'
 import { mediaHrefFor } from '../ui/app-chrome.tsx'
@@ -72,6 +84,7 @@ import { AlbumDetailPage } from '../ui/album-detail-page.tsx'
 import { ArtistDetailPage } from '../ui/artist-detail-page.tsx'
 import { LibraryHomePage, type LibraryFacet } from '../ui/library-home-page.tsx'
 import { LoginPage } from '../ui/login-page.tsx'
+import { PlaylistDetailPage } from '../ui/playlist-detail-page.tsx'
 import { PlaylistsPage } from '../ui/playlists-page.tsx'
 import { SearchPage } from '../ui/search-page.tsx'
 import { SettingsPage } from '../ui/settings-page.tsx'
@@ -142,17 +155,6 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
           )
         },
       },
-      playlists: {
-        middleware: [requireSignedIn(config, database)],
-        async handler(context) {
-          let member = signedInOrThrow(context)
-          let forced = passwordChangeRedirect(config, member)
-          if (forced) {
-            return forced
-          }
-          return context.render(<PlaylistsPage chrome={await loadChrome(config, database, member)} />)
-        },
-      },
       search: {
         middleware: [requireSignedIn(config, database)],
         async handler(context) {
@@ -161,10 +163,11 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
           if (forced) {
             return forced
           }
-          let query = new URL(context.request.url).searchParams.get('q') ?? ''
+          let query = (new URL(context.request.url).searchParams.get('q') ?? '').trim()
           return context.render(
             <SearchPage
-              query={query.trim()}
+              query={query}
+              playlists={query ? searchOwnPlaylists(database, member, query) : []}
               chrome={await loadChrome(config, database, member)}
             />,
           )
@@ -484,6 +487,72 @@ export function createLoginController({ config, database, passwordProvider }: Ap
   })
 }
 
+export function createPlaylistsController({ config, database }: AppDeps) {
+  return createController(routes.playlists, {
+    middleware: [requireSignedIn(config, database)],
+    actions: {
+      async index(context) {
+        let member = signedInOrThrow(context)
+        let forced = passwordChangeRedirect(config, member)
+        if (forced) {
+          return forced
+        }
+        let error = context.get(Session).get('error')
+        return context.render(
+          <PlaylistsPage
+            playlists={listPlaylists(database, member)}
+            error={typeof error === 'string' ? error : undefined}
+            chrome={await loadChrome(config, database, member)}
+          />,
+        )
+      },
+      async action(context) {
+        let member = signedInOrThrow(context)
+        let forced = passwordChangeRedirect(config, member)
+        if (forced) {
+          return forced
+        }
+        try {
+          let created = createPlaylist(database, member, String(context.get(FormData).get('name') ?? ''))
+          return publicRedirect(config, routes.playlist.index.href({ id: created.id }))
+        } catch (error) {
+          if (error instanceof PlaylistError) {
+            context.get(Session).flash('error', error.message)
+            return publicRedirect(config, routes.playlists.index.href())
+          }
+          throw error
+        }
+      },
+    },
+  })
+}
+
+export function createPlaylistController({ config, database }: AppDeps) {
+  return createController(routes.playlist, {
+    middleware: [requireSignedIn(config, database)],
+    actions: {
+      async index(context) {
+        let member = signedInOrThrow(context)
+        let forced = passwordChangeRedirect(config, member)
+        if (forced) {
+          return forced
+        }
+        let error = context.get(Session).get('error')
+        return context.render(
+          <PlaylistDetailPage
+            playlist={getPlaylist(database, member, context.params.id)}
+            error={typeof error === 'string' ? error : undefined}
+            chrome={await loadChrome(config, database, member)}
+          />,
+        )
+      },
+      action(context) {
+        return runPlaylistMutation(context, config, database)
+      },
+    },
+  })
+}
+
 export function createSettingsController({ config, database }: AppDeps) {
   return createController(routes.settings, {
     middleware: [requireSignedIn(config, database)],
@@ -626,6 +695,10 @@ async function loadChrome(config: AppConfig, database: AppDatabase, member: Hous
     shuffle: session.shuffle,
     repeat: session.repeat,
     queue: session.queue.map(toPlayerTrack),
+    playlists: listPlaylists(database, member).map((playlist) => ({
+      id: playlist.id,
+      name: playlist.name,
+    })),
   }
 }
 
@@ -680,6 +753,66 @@ function scanReturnTo(context: { get: (key: any) => any }): string {
     return next
   }
   return routes.settings.index.href()
+}
+
+function runPlaylistMutation(
+  context: { get: (key: any) => any; params: { id: string } },
+  config: AppConfig,
+  database: AppDatabase,
+) {
+  let member = signedInOrThrow(context)
+  let forced = passwordChangeRedirect(config, member)
+  if (forced) {
+    return forced
+  }
+
+  let playlistId = context.params.id
+  let formData = context.get(FormData)
+  let intent = String(formData.get('intent') ?? '')
+
+  try {
+    if (intent === 'rename') {
+      renamePlaylist(database, member, playlistId, String(formData.get('name') ?? ''))
+    } else if (intent === 'delete') {
+      deletePlaylist(database, member, playlistId)
+      return publicRedirect(config, routes.playlists.index.href())
+    } else if (intent === 'add') {
+      addTrackToPlaylist(database, member, playlistId, String(formData.get('trackId') ?? ''))
+    } else if (intent === 'remove') {
+      removePlaylistEntry(
+        database,
+        member,
+        playlistId,
+        Number.parseInt(String(formData.get('position') ?? '-1'), 10),
+      )
+    } else if (intent === 'reorder') {
+      reorderPlaylistEntry(
+        database,
+        member,
+        playlistId,
+        Number.parseInt(String(formData.get('from') ?? '-1'), 10),
+        Number.parseInt(String(formData.get('to') ?? '-1'), 10),
+      )
+    } else {
+      context.get(Session).flash('error', 'That Playlist action is not available')
+    }
+  } catch (error) {
+    if (error instanceof PlaylistError) {
+      context.get(Session).flash('error', error.message)
+      return publicRedirect(config, playlistReturnTo(formData, playlistId))
+    }
+    throw error
+  }
+
+  return publicRedirect(config, playlistReturnTo(formData, playlistId))
+}
+
+function playlistReturnTo(formData: FormData, playlistId: string): string {
+  let next = String(formData.get('next') ?? '')
+  if (next.startsWith('/') && !next.startsWith('//') && !next.includes('\\')) {
+    return next
+  }
+  return routes.playlist.index.href({ id: playlistId })
 }
 
 function sessionReturnTo(formData: FormData): string {

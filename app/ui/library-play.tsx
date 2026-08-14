@@ -4,6 +4,11 @@ import { css } from 'remix/ui'
 import type { Track } from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
 
+export type PlaylistChoice = {
+  id: string
+  name: string
+}
+
 export function lonePlayButton(trackId: string, next?: string): RemixNode {
   return (
     <form method="POST" action={routes.session.href()}>
@@ -17,7 +22,11 @@ export function lonePlayButton(trackId: string, next?: string): RemixNode {
   )
 }
 
-export function trackActions(trackId: string, next?: string): RemixNode {
+export function trackActions(
+  trackId: string,
+  next?: string,
+  playlists: PlaylistChoice[] = [],
+): RemixNode {
   return (
     <details mix={actionsMenu}>
       <summary mix={actionsSummary} aria-label="Track actions">
@@ -26,6 +35,25 @@ export function trackActions(trackId: string, next?: string): RemixNode {
       <div mix={actionsList}>
         {queueAction('play-next', 'Play next', trackId, next)}
         {queueAction('add-to-queue', 'Add to queue', trackId, next)}
+        <p mix={playlistHeading}>Add to playlist</p>
+        {playlists.length === 0 ? (
+          <p mix={playlistEmpty}>Create a Playlist first</p>
+        ) : (
+          playlists.map((playlist) => (
+            <form
+              method="POST"
+              action={routes.playlist.action.href({ id: playlist.id })}
+              key={playlist.id}
+            >
+              <input type="hidden" name="intent" value="add" />
+              <input type="hidden" name="trackId" value={trackId} />
+              {next ? <input type="hidden" name="next" value={next} /> : null}
+              <button mix={button} type="submit">
+                {playlist.name}
+              </button>
+            </form>
+          ))
+        )}
       </div>
     </details>
   )
@@ -53,8 +81,8 @@ export function playContainerButton(
   return (
     <form method="POST" action={routes.session.href()}>
       <input type="hidden" name="intent" value="play" />
-      {tracks.map((track) => (
-        <input type="hidden" name="trackId" value={track.id} key={track.id} />
+      {tracks.map((track, index) => (
+        <input type="hidden" name="trackId" value={track.id} key={`${index}-${track.id}`} />
       ))}
       <input type="hidden" name="startAt" value={String(startAt)} />
       {options.shuffle ? <input type="hidden" name="shuffle" value="1" /> : null}
@@ -115,6 +143,21 @@ let actionsList = css({
   border: '1px solid #e0d3bf',
   borderRadius: '2px',
   boxShadow: '0 8px 24px rgba(28, 18, 12, 0.12)',
+})
+
+let playlistHeading = css({
+  margin: '0.45rem 0 0',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  color: '#6b5646',
+})
+
+let playlistEmpty = css({
+  margin: 0,
+  fontSize: '0.85rem',
+  color: '#6b5646',
 })
 
 let placeholder = css({

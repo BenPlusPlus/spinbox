@@ -298,7 +298,7 @@ describe('Now playing vinyl and mini-dock HTTP', () => {
     assert.doesNotMatch(body.mediaHref ?? '', /#/)
   })
 
-  it('offers Play next and Add to queue from Track actions without Add to playlist', async () => {
+  it('offers Play next, Add to queue, and Add to playlist from Track actions', async () => {
     let { app } = await freshApp()
     let cookie = await signInAdmin(app)
     await scanNow(app, cookie)
@@ -312,7 +312,7 @@ describe('Now playing vinyl and mini-dock HTTP', () => {
     assert.match(html, /aria-label="Track actions"/i)
     assert.match(html, /Play next/)
     assert.match(html, /Add to queue/)
-    assert.doesNotMatch(html, /Add to playlist/i)
+    assert.match(html, /Add to playlist/)
   })
 })
 

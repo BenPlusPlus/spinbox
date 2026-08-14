@@ -34,6 +34,6 @@ Production (`pnpm start`) fail-fasts unless `LIBRARY_ROOT`, `SPINBOX_DATA_DIR`, 
 
 ## Layout
 
-Remix entrypoints (`server.ts`, `app/routes.ts`, `app/router.ts`, `app/actions`, `app/middleware`, `app/assets`, `app/ui`) plus `app/modules/*` (`config`, `auth`, and `library` are live; `media`, `playback`, and `playlists` are stubs). SQLite connection and versioned migrations live in `app/data`. An Admin can start a Scan run from Settings. A CI fixture Library lives at `test/fixtures/library`.
+Remix entrypoints (`server.ts`, `app/routes.ts`, `app/router.ts`, `app/actions`, `app/middleware`, `app/assets`, `app/ui`) plus `app/modules/*` (`config`, `auth`, `library`, `media`, `playback`, and `playlists`). SQLite connection and versioned migrations live in `app/data`. An Admin can start a Scan run from Settings. A CI fixture Library lives at `test/fixtures/library`.
 
 See [`docs/design/spinbox-v1.md`](docs/design/spinbox-v1.md) and [`CONTEXT.md`](CONTEXT.md).

@@ -77,7 +77,7 @@ export function ArtistDetailPage(
                         {track.title} — {track.album}
                       </span>
                       {playContainerButton('Play', playTracks, startAt < 0 ? 0 : startAt, { next })}
-                      <TrackMenu trackId={track.id} next={next} />
+                      <TrackMenu trackId={track.id} next={next} playlists={chrome?.playlists} />
                     </li>
                   )
                 })}

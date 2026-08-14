@@ -7,6 +7,8 @@ import {
   createInvitesController,
   createJoinController,
   createLoginController,
+  createPlaylistController,
+  createPlaylistsController,
   createRootController,
   createSettingsController,
   createSetupController,
@@ -65,6 +67,8 @@ export function createApp({
   router.map(routes.login, createLoginController(deps))
   router.map(routes.invites, createInvitesController(deps))
   router.map(routes.join, createJoinController(deps))
+  router.map(routes.playlists, createPlaylistsController(deps))
+  router.map(routes.playlist, createPlaylistController(deps))
   router.map(routes.settings, createSettingsController(deps))
 
   return router

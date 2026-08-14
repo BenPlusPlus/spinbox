@@ -95,7 +95,7 @@ export function LibraryHomePage(
                     <span mix={recentTitle}>{track.title}</span>
                     <span mix={recentMeta}>{track.artist}</span>
                     {lonePlayButton(track.id)}
-                    <TrackMenu trackId={track.id} />
+                    <TrackMenu trackId={track.id} playlists={chrome?.playlists} />
                   </li>
                 ))}
               </ol>
@@ -152,7 +152,7 @@ export function LibraryHomePage(
                       {track.title} — {track.artist}
                     </span>
                     {lonePlayButton(track.id)}
-                    <TrackMenu trackId={track.id} />
+                    <TrackMenu trackId={track.id} playlists={chrome?.playlists} />
                   </li>
                 ))}
               </ul>
