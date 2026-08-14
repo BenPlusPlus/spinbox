@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 
 import * as assert from 'remix/assert'
 
-import { sameTrackAudioAction, streamHref } from '../app/assets/player.tsx'
+import { mergePlayhead, sameTrackAudioAction, streamHref } from '../app/assets/player.tsx'
 
 describe('player audio sync', () => {
   it('does not reload the stream when only the playhead persists', () => {
@@ -31,6 +31,12 @@ describe('player audio sync', () => {
       ),
       'transport',
     )
+  })
+
+  it('does not roll the live playhead back to a stale persisted position', () => {
+    assert.equal(mergePlayhead(38_000, 37_000, 'none'), 38_000)
+    assert.equal(mergePlayhead(38_000, 37_000, 'transport'), 38_000)
+    assert.equal(mergePlayhead(0, 90_000, 'load'), 90_000)
   })
 
   it('loads audio when the current Track changes', () => {

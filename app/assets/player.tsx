@@ -398,10 +398,18 @@ export const PlayerIsland = clientEntry(
       }
       if (fields.intent === 'update' && fields.playing === '0') {
         view.playing = false
+        if (audio) {
+          view.playheadMs = Math.floor(audio.currentTime * 1000)
+          fields.playheadMs = String(view.playheadMs)
+        }
         audio?.pause()
         void handle.update()
       } else if (fields.intent === 'update' && fields.playing === '1') {
         view.playing = true
+        if (audio) {
+          view.playheadMs = Math.floor(audio.currentTime * 1000)
+          fields.playheadMs = String(view.playheadMs)
+        }
         void audio?.play().catch(() => {
           // Autoplay block is not an unplayable Track; media `error` handles non-2xx.
         })
@@ -456,7 +464,8 @@ export const PlayerIsland = clientEntry(
         }, SWAP_MS)
         return
       }
-      view = { ...next }
+      let localMs = audio ? Math.floor(audio.currentTime * 1000) : view.playheadMs
+      view = { ...next, playheadMs: mergePlayhead(localMs, next.playheadMs, action) }
       if (action === 'transport') {
         syncAudio(false)
       }
@@ -530,6 +539,7 @@ export const PlayerIsland = clientEntry(
         return
       }
       view.playheadMs = Math.floor(audio.currentTime * 1000)
+      void handle.update()
       let now = Date.now()
       if (now - persistAt > 5000) {
         persistAt = now
@@ -612,6 +622,17 @@ export function streamHref(href: string | null | undefined): string | null {
   }
   let hash = href.indexOf('#')
   return hash === -1 ? href : href.slice(0, hash)
+}
+
+export function mergePlayhead(
+  localMs: number,
+  serverMs: number,
+  action: 'load' | 'transport' | 'none',
+): number {
+  if (action === 'load') {
+    return serverMs
+  }
+  return Math.max(localMs, serverMs)
 }
 
 export function sameTrackAudioAction(
