@@ -176,6 +176,88 @@ export function addToQueue(
   return mutateQueue(database, member, (queue) => [...queue, trackId])
 }
 
+export function skipNext(database: AppDatabase, member: HouseholdMember): ListeningSession {
+  let session = getListeningSession(database, member)
+  let nextId = session.queue[0]?.id
+  if (nextId) {
+    return playIntoSession(database, member, {
+      trackIds: [nextId, ...session.queue.slice(1).map((track) => track.id)],
+    })
+  }
+
+  if (session.currentTrack == null) {
+    return session
+  }
+
+  if (session.repeat === 'all' || session.repeat === 'one') {
+    return updateListeningSession(database, member, { playheadMs: 0, playing: true })
+  }
+
+  return updateListeningSession(database, member, { playing: false })
+}
+
+export function skipPrevious(database: AppDatabase, member: HouseholdMember): ListeningSession {
+  let session = getListeningSession(database, member)
+  if (session.currentTrack == null) {
+    return session
+  }
+  return updateListeningSession(database, member, { playheadMs: 0, playing: true })
+}
+
+export function removeFromQueue(
+  database: AppDatabase,
+  member: HouseholdMember,
+  position: number,
+): ListeningSession {
+  return mutateQueue(database, member, (queue) => queue.filter((_, index) => index !== position))
+}
+
+export function reorderQueue(
+  database: AppDatabase,
+  member: HouseholdMember,
+  from: number,
+  to: number,
+): ListeningSession {
+  return mutateQueue(database, member, (queue) => {
+    if (from < 0 || from >= queue.length || to < 0 || to >= queue.length || from === to) {
+      return queue
+    }
+    let next = [...queue]
+    let [moved] = next.splice(from, 1)
+    if (moved == null) {
+      return queue
+    }
+    next.splice(to, 0, moved)
+    return next
+  })
+}
+
+export function clearUpcoming(database: AppDatabase, member: HouseholdMember): ListeningSession {
+  return mutateQueue(database, member, () => [])
+}
+
+export function clearAll(database: AppDatabase, member: HouseholdMember): ListeningSession {
+  let now = new Date().toISOString()
+  let existing = loadSessionRow(database, member.id)
+  database.sqlite.exec('BEGIN IMMEDIATE')
+  try {
+    upsertSession(database, member.id, {
+      currentTrackId: null,
+      playheadMs: 0,
+      playing: false,
+      shuffle: existing?.shuffle === 1,
+      repeat: existing?.repeat_mode ?? 'off',
+      updatedAt: now,
+    })
+    replaceQueue(database, member.id, [])
+    database.sqlite.exec('COMMIT')
+  } catch (error) {
+    database.sqlite.exec('ROLLBACK')
+    throw error
+  }
+  return getListeningSession(database, member)
+}
+
 export function getListenResume(database: AppDatabase, member: HouseholdMember): ListenResume {
   let target = database.sqlite
     .prepare(

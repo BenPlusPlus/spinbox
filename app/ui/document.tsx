@@ -21,6 +21,7 @@ export function Document(handle: Handle<DocumentProps>) {
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
           <title>{title}</title>
           {head}
+          <style>{`@keyframes spinbox-vinyl { to { transform: rotate(360deg); } }`}</style>
         </head>
         <body mix={css({ margin: 0 })}>
           {children}

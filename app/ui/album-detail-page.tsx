@@ -4,6 +4,7 @@ import { css } from 'remix/ui'
 import type { AlbumGroup } from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
+import { TrackMenu } from '../assets/track-menu.tsx'
 import { artworkPlaceholder, playContainerButton } from './library-play.tsx'
 
 export function AlbumDetailPage(
@@ -57,6 +58,7 @@ export function AlbumDetailPage(
                 </span>
                 <span mix={title}>{track.title}</span>
                 {playContainerButton('Play', album.tracks, index, { next })}
+                <TrackMenu trackId={track.id} next={next} />
               </li>
             ))}
           </ol>

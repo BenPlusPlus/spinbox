@@ -4,6 +4,7 @@ import { css } from 'remix/ui'
 import { tracksForArtistPlay, type ArtistGroup } from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
+import { TrackMenu } from '../assets/track-menu.tsx'
 import { artworkPlaceholder, playContainerButton } from './library-play.tsx'
 
 export function ArtistDetailPage(
@@ -76,6 +77,7 @@ export function ArtistDetailPage(
                         {track.title} — {track.album}
                       </span>
                       {playContainerButton('Play', playTracks, startAt < 0 ? 0 : startAt, { next })}
+                      <TrackMenu trackId={track.id} next={next} />
                     </li>
                   )
                 })}

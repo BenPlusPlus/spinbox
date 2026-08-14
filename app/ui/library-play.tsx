@@ -17,6 +17,33 @@ export function lonePlayButton(trackId: string, next?: string): RemixNode {
   )
 }
 
+export function trackActions(trackId: string, next?: string): RemixNode {
+  return (
+    <details mix={actionsMenu}>
+      <summary mix={actionsSummary} aria-label="Track actions">
+        ⋯
+      </summary>
+      <div mix={actionsList}>
+        {queueAction('play-next', 'Play next', trackId, next)}
+        {queueAction('add-to-queue', 'Add to queue', trackId, next)}
+      </div>
+    </details>
+  )
+}
+
+function queueAction(intent: string, label: string, trackId: string, next?: string): RemixNode {
+  return (
+    <form method="POST" action={routes.session.href()}>
+      <input type="hidden" name="intent" value={intent} />
+      <input type="hidden" name="trackId" value={trackId} />
+      {next ? <input type="hidden" name="next" value={next} /> : null}
+      <button mix={button} type="submit">
+        {label}
+      </button>
+    </form>
+  )
+}
+
 export function playContainerButton(
   label: string,
   tracks: Track[],
@@ -59,6 +86,36 @@ export let playButton = css({
 })
 
 let button = playButton
+
+let actionsMenu = css({
+  position: 'relative',
+})
+
+let actionsSummary = css({
+  listStyle: 'none',
+  cursor: 'pointer',
+  padding: '0.2rem 0.45rem',
+  fontWeight: 700,
+  letterSpacing: '0.08em',
+  color: '#6b5646',
+  '&::-webkit-details-marker': {
+    display: 'none',
+  },
+})
+
+let actionsList = css({
+  position: 'absolute',
+  right: 0,
+  zIndex: 2,
+  display: 'grid',
+  gap: '0.25rem',
+  minWidth: '9rem',
+  padding: '0.45rem',
+  background: '#fffdf7',
+  border: '1px solid #e0d3bf',
+  borderRadius: '2px',
+  boxShadow: '0 8px 24px rgba(28, 18, 12, 0.12)',
+})
 
 let placeholder = css({
   display: 'grid',

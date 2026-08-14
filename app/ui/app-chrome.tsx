@@ -1,22 +1,23 @@
 import type { Handle, RemixNode } from 'remix/ui'
 import { css } from 'remix/ui'
 
+import { PlayerIsland, playerProps, type PlayerRepeat, type PlayerTrack } from '../assets/player.tsx'
 import { routes } from '../routes.ts'
 import { Document } from './document.tsx'
 
-export type ChromeDestination = 'library' | 'playlists' | 'search' | 'settings'
+export type ChromeDestination = 'library' | 'playlists' | 'search' | 'settings' | 'now-playing'
 
-export type ChromeTrack = {
-  id: string
-  title: string
-  artist: string
-}
+export type ChromeTrack = PlayerTrack
 
 export type ChromeState = {
   libraryHealthy: boolean
   currentTrack: ChromeTrack | null
   playing: boolean
   mediaHref: string | null
+  playheadMs?: number
+  shuffle?: boolean
+  repeat?: PlayerRepeat
+  queue?: ChromeTrack[]
 }
 
 export type AppChromeProps = {
@@ -41,6 +42,7 @@ export function AppChrome(handle: Handle<AppChromeProps>) {
     let currentTrack = chrome?.currentTrack ?? null
     let playing = chrome?.playing ?? false
     let mediaHref = chrome?.mediaHref ?? null
+    let showDock = current !== 'now-playing' && currentTrack != null
 
     return (
       <Document title={title} head={fonts}>
@@ -83,23 +85,24 @@ export function AppChrome(handle: Handle<AppChromeProps>) {
               </p>
             )}
 
-            <div mix={page}>{children}</div>
+            <div mix={current === 'now-playing' ? pageFlush : page}>{children}</div>
 
             <div mix={chromeFooter}>
-              {currentTrack ? (
-                <aside mix={dock} aria-label="Mini-dock">
-                  <div mix={dockMeta}>
-                    <span mix={dockEyebrow}>{playing ? 'Now playing' : 'Paused'}</span>
-                    <strong>
-                      Now playing · {currentTrack.title}
-                      {playing ? '' : ' (paused)'}
-                    </strong>
-                    <span mix={dockArtist}>{currentTrack.artist}</span>
-                  </div>
-                  {mediaHref ? (
-                    <audio mix={dockAudio} controls src={mediaHref} preload="metadata"></audio>
-                  ) : null}
-                </aside>
+              {showDock ? (
+                <PlayerIsland
+                  {...playerProps(
+                    {
+                      currentTrack,
+                      queue: chrome?.queue ?? [],
+                      playing,
+                      shuffle: chrome?.shuffle ?? false,
+                      repeat: chrome?.repeat ?? 'off',
+                      playheadMs: chrome?.playheadMs ?? 0,
+                      mediaHref,
+                    },
+                    'dock',
+                  )}
+                />
               ) : null}
 
               <nav mix={tabs} aria-label="Tabs">
@@ -328,46 +331,16 @@ let page = css({
   },
 })
 
+let pageFlush = css({
+  minWidth: 0,
+  padding: 0,
+})
+
 let chromeFooter = css({
   position: 'sticky',
   bottom: 0,
   display: 'grid',
   alignSelf: 'end',
-})
-
-let dock = css({
-  display: 'grid',
-  gap: '0.55rem',
-  margin: '0 0.75rem',
-  padding: '0.85rem 1rem',
-  background: '#1c120c',
-  color: '#f3ead8',
-  borderRadius: '3px 3px 0 0',
-  boxShadow: '0 -10px 28px rgba(28, 18, 12, 0.22)',
-  '@media (min-width: 56rem)': {
-    margin: '0 1.75rem 0',
-  },
-})
-
-let dockMeta = css({
-  display: 'grid',
-  gap: '0.1rem',
-})
-
-let dockEyebrow = css({
-  fontSize: '0.68rem',
-  letterSpacing: '0.16em',
-  textTransform: 'uppercase',
-  color: '#c4783a',
-})
-
-let dockArtist = css({
-  color: '#d8cbb8',
-  fontSize: '0.92rem',
-})
-
-let dockAudio = css({
-  width: '100%',
 })
 
 let tabs = css({

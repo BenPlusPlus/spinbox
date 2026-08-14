@@ -12,6 +12,7 @@ export const routes = route({
   login: form('/login'),
   logout: { method: 'POST', pattern: '/logout' },
   playlists: '/playlists',
+  nowPlaying: '/now-playing',
   search: get('/search'),
   invites: form('/invites'),
   inviteRevoke: { method: 'POST', pattern: '/invites/:id/revoke' },

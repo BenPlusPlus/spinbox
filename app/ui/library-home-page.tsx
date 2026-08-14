@@ -17,6 +17,7 @@ import {
   playButton,
   playContainerButton,
 } from './library-play.tsx'
+import { TrackMenu } from '../assets/track-menu.tsx'
 
 export type LibraryFacet = 'artists' | 'albums' | 'tracks'
 
@@ -94,6 +95,7 @@ export function LibraryHomePage(
                     <span mix={recentTitle}>{track.title}</span>
                     <span mix={recentMeta}>{track.artist}</span>
                     {lonePlayButton(track.id)}
+                    <TrackMenu trackId={track.id} />
                   </li>
                 ))}
               </ol>
@@ -150,6 +152,7 @@ export function LibraryHomePage(
                       {track.title} — {track.artist}
                     </span>
                     {lonePlayButton(track.id)}
+                    <TrackMenu trackId={track.id} />
                   </li>
                 ))}
               </ul>

@@ -10,12 +10,18 @@ import { createFirstAdmin, mintInvite, redeemInvite } from '../app/modules/auth/
 import { loadConfig } from '../app/modules/config/index.ts'
 import {
   addToQueue,
+  clearAll,
+  clearUpcoming,
   getListeningSession,
   continueListening,
   getListenResume,
   listRecentlyPlayed,
   playIntoSession,
   playNext,
+  removeFromQueue,
+  reorderQueue,
+  skipNext,
+  skipPrevious,
   updateListeningSession,
 } from '../app/modules/playback/index.ts'
 
@@ -151,6 +157,134 @@ describe('Listening session', () => {
       session.queue.map((track) => track.id),
       ['hey-you', 'airbag'],
     )
+  })
+
+  it('skips next to the first Play queue Track and records Recently played', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'flesh', title: 'In the Flesh', album: 'The Wall' })
+    insertTrack(db, { id: 'hey-you', title: 'Hey You', album: 'The Wall' })
+    insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })
+    playIntoSession(db, member, { trackIds: ['flesh', 'hey-you', 'airbag'] })
+    updateListeningSession(db, member, { playheadMs: 4_000 })
+
+    let session = skipNext(db, member)
+
+    assert.equal(session.currentTrack?.id, 'hey-you')
+    assert.equal(session.playheadMs, 0)
+    assert.equal(session.playing, true)
+    assert.deepEqual(
+      session.queue.map((track) => track.id),
+      ['airbag'],
+    )
+    assert.deepEqual(
+      listRecentlyPlayed(db, member).map((track) => track.id),
+      ['hey-you', 'flesh'],
+    )
+  })
+
+  it('stays on the current Track and pauses when skip next has no upcoming and repeat is off', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })
+    playIntoSession(db, member, { trackIds: ['airbag'] })
+    updateListeningSession(db, member, { playheadMs: 8_000 })
+
+    let session = skipNext(db, member)
+
+    assert.equal(session.currentTrack?.id, 'airbag')
+    assert.equal(session.playing, false)
+    assert.equal(session.playheadMs, 8_000)
+    assert.deepEqual(session.queue, [])
+  })
+
+  it('restarts the current Track when skip next has no upcoming and repeat is all', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })
+    playIntoSession(db, member, { trackIds: ['airbag'] })
+    updateListeningSession(db, member, { playheadMs: 8_000, repeat: 'all' })
+
+    let session = skipNext(db, member)
+
+    assert.equal(session.currentTrack?.id, 'airbag')
+    assert.equal(session.playing, true)
+    assert.equal(session.playheadMs, 0)
+  })
+
+  it('restarts the current Track on skip previous', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'flesh', title: 'In the Flesh', album: 'The Wall' })
+    insertTrack(db, { id: 'hey-you', title: 'Hey You', album: 'The Wall' })
+    playIntoSession(db, member, { trackIds: ['flesh', 'hey-you'] })
+    updateListeningSession(db, member, { playheadMs: 12_000 })
+
+    let session = skipPrevious(db, member)
+
+    assert.equal(session.currentTrack?.id, 'flesh')
+    assert.equal(session.playheadMs, 0)
+    assert.equal(session.playing, true)
+    assert.deepEqual(
+      session.queue.map((track) => track.id),
+      ['hey-you'],
+    )
+  })
+
+  it('removes an upcoming Play queue Track by position', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'flesh', title: 'In the Flesh', album: 'The Wall' })
+    insertTrack(db, { id: 'hey-you', title: 'Hey You', album: 'The Wall' })
+    insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })
+    playIntoSession(db, member, { trackIds: ['flesh', 'hey-you', 'airbag'] })
+
+    let session = removeFromQueue(db, member, 0)
+
+    assert.equal(session.currentTrack?.id, 'flesh')
+    assert.deepEqual(
+      session.queue.map((track) => track.id),
+      ['airbag'],
+    )
+  })
+
+  it('reorders upcoming Play queue Tracks', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'flesh', title: 'In the Flesh', album: 'The Wall' })
+    insertTrack(db, { id: 'hey-you', title: 'Hey You', album: 'The Wall' })
+    insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })
+    insertTrack(db, { id: 'guest', title: 'Guest Hit', album: 'Now 1' })
+    playIntoSession(db, member, { trackIds: ['flesh', 'hey-you', 'airbag', 'guest'] })
+
+    let session = reorderQueue(db, member, 2, 0)
+
+    assert.equal(session.currentTrack?.id, 'flesh')
+    assert.deepEqual(
+      session.queue.map((track) => track.id),
+      ['guest', 'hey-you', 'airbag'],
+    )
+  })
+
+  it('clears upcoming Play queue Tracks without leaving the current Track', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'flesh', title: 'In the Flesh', album: 'The Wall' })
+    insertTrack(db, { id: 'hey-you', title: 'Hey You', album: 'The Wall' })
+    playIntoSession(db, member, { trackIds: ['flesh', 'hey-you'] })
+
+    let session = clearUpcoming(db, member)
+
+    assert.equal(session.currentTrack?.id, 'flesh')
+    assert.equal(session.playing, true)
+    assert.deepEqual(session.queue, [])
+  })
+
+  it('clears the Listening session so there is no current Track', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'flesh', title: 'In the Flesh', album: 'The Wall' })
+    insertTrack(db, { id: 'hey-you', title: 'Hey You', album: 'The Wall' })
+    playIntoSession(db, member, { trackIds: ['flesh', 'hey-you'] })
+
+    let session = clearAll(db, member)
+
+    assert.equal(session.currentTrack, null)
+    assert.equal(session.playing, false)
+    assert.equal(session.playheadMs, 0)
+    assert.deepEqual(session.queue, [])
   })
 
   it('persists playhead, play/pause, shuffle, and repeat on the Listening session', async () => {

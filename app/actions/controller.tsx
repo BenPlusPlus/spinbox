@@ -45,6 +45,8 @@ import {
 import { serveTrack } from '../modules/media/index.ts'
 import {
   addToQueue,
+  clearAll,
+  clearUpcoming,
   continueListening,
   getListeningSession,
   getListenResume,
@@ -52,12 +54,19 @@ import {
   playIntoSession,
   playNext,
   PlaybackError,
+  removeFromQueue,
+  reorderQueue,
+  skipNext,
+  skipPrevious,
   updateListeningSession,
+  type ListeningSession,
   type RepeatMode,
 } from '../modules/playback/index.ts'
 import { routes } from '../routes.ts'
+import { snapshotFromSession, type PlayerTrack } from '../assets/player.tsx'
 import { mediaHrefFor } from '../ui/app-chrome.tsx'
 import { InvitesPage } from '../ui/invites-page.tsx'
+import { NowPlayingPage } from '../ui/now-playing-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
 import { AlbumDetailPage } from '../ui/album-detail-page.tsx'
 import { ArtistDetailPage } from '../ui/artist-detail-page.tsx'
@@ -117,6 +126,20 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
         middleware: [requireSignedIn(config, database)],
         async handler(context) {
           return renderArtistDetail(context, config, database, context.params.artistKey)
+        },
+      },
+      nowPlaying: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          let member = signedInOrThrow(context)
+          let forced = passwordChangeRedirect(config, member)
+          if (forced) {
+            return forced
+          }
+          let chrome = await loadChrome(config, database, member)
+          return context.render(
+            <NowPlayingPage chrome={chrome} snapshot={playerSnapshotFromChrome(chrome)} />,
+          )
         },
       },
       playlists: {
@@ -596,10 +619,59 @@ async function loadChrome(config: AppConfig, database: AppDatabase, member: Hous
   let current = session.currentTrack
   return {
     libraryHealthy: await isLibraryMountHealthy(config.libraryRoot),
-    currentTrack: current,
+    currentTrack: current ? toPlayerTrack(current) : null,
     playing: session.playing,
     mediaHref: current ? mediaHrefFor(current.id, session.playheadMs) : null,
+    playheadMs: session.playheadMs,
+    shuffle: session.shuffle,
+    repeat: session.repeat,
+    queue: session.queue.map(toPlayerTrack),
   }
+}
+
+function toPlayerTrack(track: {
+  id: string
+  title: string
+  artist: string
+  album: string
+  durationMs: number | null
+}): PlayerTrack {
+  return {
+    id: track.id,
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    durationMs: track.durationMs,
+  }
+}
+
+function playerSnapshotFromChrome(chrome: Awaited<ReturnType<typeof loadChrome>>) {
+  return snapshotFromSession({
+    currentTrack: chrome.currentTrack,
+    queue: chrome.queue,
+    playing: chrome.playing,
+    shuffle: chrome.shuffle,
+    repeat: chrome.repeat,
+    playheadMs: chrome.playheadMs,
+    mediaHref: chrome.mediaHref,
+  })
+}
+
+function sessionSnapshot(session: ListeningSession) {
+  let current = session.currentTrack
+  return snapshotFromSession({
+    currentTrack: current ? toPlayerTrack(current) : null,
+    queue: session.queue.map(toPlayerTrack),
+    playing: session.playing,
+    shuffle: session.shuffle,
+    repeat: session.repeat,
+    playheadMs: session.playheadMs,
+    mediaHref: current ? mediaHrefFor(current.id, session.playheadMs) : null,
+  })
+}
+
+function wantsJson(request: Request): boolean {
+  return (request.headers.get('Accept') ?? '').includes('application/json')
 }
 
 function scanReturnTo(context: { get: (key: any) => any }): string {
@@ -634,7 +706,7 @@ function requireSignedIn(config: AppConfig, database: AppDatabase) {
 }
 
 function runSessionMutation(
-  context: { get: (key: any) => any },
+  context: { get: (key: any) => any; request: Request },
   config: AppConfig,
   database: AppDatabase,
 ) {
@@ -665,15 +737,39 @@ function runSessionMutation(
       updateListeningSession(database, member, parseSessionPatch(formData))
     } else if (intent === 'continue') {
       continueListening(database, member)
+    } else if (intent === 'skip-next') {
+      skipNext(database, member)
+    } else if (intent === 'skip-previous') {
+      skipPrevious(database, member)
+    } else if (intent === 'remove-from-queue') {
+      removeFromQueue(database, member, Number.parseInt(String(formData.get('position') ?? '-1'), 10))
+    } else if (intent === 'reorder-queue') {
+      reorderQueue(
+        database,
+        member,
+        Number.parseInt(String(formData.get('from') ?? '-1'), 10),
+        Number.parseInt(String(formData.get('to') ?? '-1'), 10),
+      )
+    } else if (intent === 'clear-upcoming') {
+      clearUpcoming(database, member)
+    } else if (intent === 'clear-all') {
+      clearAll(database, member)
     } else {
       context.get(Session).flash('error', 'That Listening session action is not available')
     }
   } catch (error) {
     if (error instanceof PlaybackError) {
       context.get(Session).flash('error', error.message)
+      if (wantsJson(context.request)) {
+        return Response.json({ error: error.message }, { status: 400 })
+      }
       return publicRedirect(config, routes.home.href())
     }
     throw error
+  }
+
+  if (wantsJson(context.request)) {
+    return Response.json(sessionSnapshot(getListeningSession(database, member)))
   }
 
   return publicRedirect(config, sessionReturnTo(formData))
