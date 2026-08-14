@@ -74,6 +74,7 @@ export const PlayerIsland = clientEntry(
       }
       return (
         <audio
+          key={view.currentTrack.id}
           mix={[
             hiddenAudio,
             ref((node) => {
@@ -95,7 +96,7 @@ export const PlayerIsland = clientEntry(
               }
             }),
           ]}
-          src={view.mediaHref}
+          src={streamHref(view.mediaHref) ?? undefined}
           preload="metadata"
         ></audio>
       )
@@ -434,8 +435,11 @@ export const PlayerIsland = clientEntry(
         }, SWAP_MS)
         return
       }
+      let trackUnchanged = previousId === nextId
       view = { ...next }
-      syncAudio(false)
+      if (!trackUnchanged) {
+        syncAudio(false)
+      }
       void handle.update()
     }
 
@@ -443,8 +447,10 @@ export const PlayerIsland = clientEntry(
       if (audio == null || view.mediaHref == null) {
         return
       }
-      if (force || audio.getAttribute('src') !== view.mediaHref) {
-        audio.src = view.mediaHref
+      let nextSrc = streamHref(view.mediaHref)
+      let currentSrc = streamHref(audio.getAttribute('src'))
+      if (nextSrc && (force || currentSrc !== nextSrc)) {
+        audio.src = nextSrc
       }
       let target = view.playheadMs / 1000
       if (Math.abs(audio.currentTime - target) > 1.25) {
@@ -578,6 +584,14 @@ function labelColor(id: string): string {
     hash = (hash + id.charCodeAt(index) * (index + 1)) % LABEL_COLORS.length
   }
   return LABEL_COLORS[hash] ?? LABEL_COLORS[0]!
+}
+
+export function streamHref(href: string | null | undefined): string | null {
+  if (href == null || href === '') {
+    return null
+  }
+  let hash = href.indexOf('#')
+  return hash === -1 ? href : href.slice(0, hash)
 }
 
 export function formatMs(ms: number): string {

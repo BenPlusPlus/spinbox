@@ -261,6 +261,43 @@ describe('Now playing vinyl and mini-dock HTTP', () => {
     assert.equal(body.mediaHref, routes.mediaTrack.href({ trackId: airbag.id }))
   })
 
+  it('keeps a stable media URL when the playhead moves so the player is not reloaded', async () => {
+    let { app, database: db } = await freshApp()
+    let cookie = await signInAdmin(app)
+    await scanNow(app, cookie)
+    let airbag = findTrackByPath(db, 'Radiohead/OK Computer/01 - Airbag.mp3')
+    assert.ok(airbag)
+    let mediaHref = routes.mediaTrack.href({ trackId: airbag.id })
+
+    cookie =
+      sessionCookie(
+        await postForm(
+          app,
+          'http://evil.example' + routes.session.href(),
+          { intent: 'play', trackId: airbag.id },
+          cookie,
+        ),
+      ) || cookie
+
+    let updated = await postForm(
+      app,
+      'http://evil.example' + routes.session.href(),
+      { intent: 'update', playheadMs: '5000', playing: '1' },
+      cookie,
+      { Accept: 'application/json' },
+    )
+    assert.equal(updated.status, 200)
+    let body = (await updated.json()) as {
+      playheadMs: number
+      playing: boolean
+      mediaHref: string | null
+    }
+    assert.equal(body.playheadMs, 5000)
+    assert.equal(body.playing, true)
+    assert.equal(body.mediaHref, mediaHref)
+    assert.doesNotMatch(body.mediaHref ?? '', /#/)
+  })
+
   it('offers Play next and Add to queue from Track actions without Add to playlist', async () => {
     let { app } = await freshApp()
     let cookie = await signInAdmin(app)

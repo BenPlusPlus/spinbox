@@ -621,7 +621,7 @@ async function loadChrome(config: AppConfig, database: AppDatabase, member: Hous
     libraryHealthy: await isLibraryMountHealthy(config.libraryRoot),
     currentTrack: current ? toPlayerTrack(current) : null,
     playing: session.playing,
-    mediaHref: current ? mediaHrefFor(current.id, session.playheadMs) : null,
+    mediaHref: current ? mediaHrefFor(current.id) : null,
     playheadMs: session.playheadMs,
     shuffle: session.shuffle,
     repeat: session.repeat,
@@ -666,7 +666,7 @@ function sessionSnapshot(session: ListeningSession) {
     shuffle: session.shuffle,
     repeat: session.repeat,
     playheadMs: session.playheadMs,
-    mediaHref: current ? mediaHrefFor(current.id, session.playheadMs) : null,
+    mediaHref: current ? mediaHrefFor(current.id) : null,
   })
 }
 

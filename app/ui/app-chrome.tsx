@@ -27,12 +27,8 @@ export type AppChromeProps = {
   chrome?: ChromeState
 }
 
-export function mediaHrefFor(trackId: string, playheadMs: number): string {
-  let href = routes.mediaTrack.href({ trackId })
-  if (playheadMs <= 0) {
-    return href
-  }
-  return `${href}#t=${playheadMs / 1000}`
+export function mediaHrefFor(trackId: string): string {
+  return routes.mediaTrack.href({ trackId })
 }
 
 export function AppChrome(handle: Handle<AppChromeProps>) {
