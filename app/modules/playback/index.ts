@@ -59,18 +59,19 @@ export function getListeningSession(
 export function playIntoSession(
   database: AppDatabase,
   member: HouseholdMember,
-  input: { trackIds: string[]; startAt?: number; playheadMs?: number },
+  input: { trackIds: string[]; startAt?: number; playheadMs?: number; shuffle?: boolean },
 ): ListeningSession {
-  let startAt = input.startAt ?? 0
-  let currentId = input.trackIds[startAt]
+  let trackIds = input.shuffle ? shuffleTrackIds(input.trackIds) : input.trackIds
+  let startAt = input.shuffle ? 0 : (input.startAt ?? 0)
+  let currentId = trackIds[startAt]
   if (currentId == null) {
     throw new PlaybackError('unknown_track', 'That Track is not in the play-into-session list')
   }
 
   let current = requireTrack(database, currentId)
-  let upcomingIds = input.trackIds.slice(startAt + 1).map((id) => requireTrack(database, id).id)
+  let upcomingIds = trackIds.slice(startAt + 1).map((id) => requireTrack(database, id).id)
   let existing = loadSessionRow(database, member.id)
-  let shuffle = existing?.shuffle === 1
+  let shuffle = input.shuffle === true ? true : existing?.shuffle === 1
   let repeat = existing?.repeat_mode ?? 'off'
   let playheadMs = input.playheadMs ?? 0
   let now = new Date().toISOString()
@@ -433,6 +434,17 @@ function recordRecentlyPlayed(
          )`,
     )
     .run(memberId, memberId)
+}
+
+function shuffleTrackIds(trackIds: string[]): string[] {
+  let next = [...trackIds]
+  for (let index = next.length - 1; index > 0; index--) {
+    let swap = Math.floor(Math.random() * (index + 1))
+    let current = next[index]!
+    next[index] = next[swap]!
+    next[swap] = current
+  }
+  return next
 }
 
 function replaceQueue(database: AppDatabase, memberId: string, trackIds: string[]) {

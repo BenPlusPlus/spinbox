@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url'
 import * as assert from 'remix/assert'
 
 import { openDatabase, type AppDatabase } from '../app/data/index.ts'
+import { authenticateMember } from '../app/modules/auth/index.ts'
 import { loadConfig } from '../app/modules/config/index.ts'
 import { findTrackByPath } from '../app/modules/library/index.ts'
+import { getListeningSession } from '../app/modules/playback/index.ts'
 import { createApp } from '../app/router.ts'
 import { routes } from '../app/routes.ts'
 
@@ -120,8 +122,14 @@ describe('Listening session HTTP', () => {
     )
     let fromTapHtml = await fromTap.text()
     assert.match(fromTapHtml, /Now playing · Hey You/)
-    assert.match(fromTapHtml, /Play queue/)
     assert.doesNotMatch(fromTapHtml, /Now playing · In the Flesh/)
+    let member = await authenticateMember(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    assert.ok(member)
+    assert.equal(getListeningSession(db, member).currentTrack?.title, 'Hey You')
+    assert.deepEqual(getListeningSession(db, member).queue, [])
 
     cookie =
       sessionCookie(
@@ -182,11 +190,15 @@ describe('Listening session HTTP', () => {
     )
     let html = await home.text()
     assert.match(html, /Now playing · Airbag/)
-    let queue = html.slice(html.lastIndexOf('Play queue'))
-    let heyIndex = queue.indexOf('Hey You')
-    let guestIndex = queue.indexOf('Guest Hit')
-    assert.ok(heyIndex >= 0 && guestIndex > heyIndex)
-    assert.ok(queue.indexOf('Albums') > guestIndex)
+    let member = await authenticateMember(db, {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    })
+    assert.ok(member)
+    assert.deepEqual(
+      getListeningSession(db, member).queue.map((track) => track.title),
+      ['Hey You', 'Guest Hit'],
+    )
   })
 
   it('shares one Listening session across devices with last-write-wins', async () => {

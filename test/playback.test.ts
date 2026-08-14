@@ -214,6 +214,21 @@ describe('Listening session', () => {
     assert.equal(getListeningSession(db, other).currentTrack?.id, 'hey-you')
   })
 
+  it('shuffles container order and turns shuffle on when play-into-session asks to shuffle', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'a', title: 'A', album: 'Box' })
+    insertTrack(db, { id: 'b', title: 'B', album: 'Box' })
+    insertTrack(db, { id: 'c', title: 'C', album: 'Box' })
+
+    let session = playIntoSession(db, member, { trackIds: ['a', 'b', 'c'], shuffle: true })
+
+    assert.equal(session.shuffle, true)
+    assert.equal(session.playing, true)
+    assert.ok(session.currentTrack)
+    let played = [session.currentTrack.id, ...session.queue.map((track) => track.id)].sort()
+    assert.deepEqual(played, ['a', 'b', 'c'])
+  })
+
   it('keeps shuffle and repeat across play-into-session and stays in container order', async () => {
     let { database: db, member } = await freshPlayback()
     insertTrack(db, { id: 'a', title: 'A', album: 'Box' })

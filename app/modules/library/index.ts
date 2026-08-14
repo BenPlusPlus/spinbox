@@ -425,6 +425,168 @@ export function findTrackById(database: AppDatabase, id: string): Track | null {
   return row ? toTrack(row) : null
 }
 
+export type AlbumGroup = {
+  key: string
+  album: string
+  albumArtist: string
+  tracks: Track[]
+}
+
+export type ArtistGroup = {
+  key: string
+  artist: string
+  albums: AlbumGroup[]
+  tracks: Track[]
+}
+
+export function albumGroupingKey(albumArtist: string, album: string): string {
+  return encodeGroupingKey([albumArtist, album])
+}
+
+export function artistGroupingKey(artist: string): string {
+  return encodeGroupingKey([artist])
+}
+
+export function listAlbums(database: AppDatabase): AlbumGroup[] {
+  return groupAlbums(listTracks(database))
+}
+
+export function findAlbumByKey(database: AppDatabase, key: string): AlbumGroup | null {
+  let parts = decodeGroupingKey(key)
+  if (parts?.length !== 2) {
+    return null
+  }
+  let [albumArtist, album] = parts
+  let tracks = listTracks(database).filter(
+    (track) => track.albumArtist === albumArtist && track.album === album,
+  )
+  if (tracks.length === 0) {
+    return null
+  }
+  tracks.sort(compareAlbumTracks)
+  return { key, album: album!, albumArtist: albumArtist!, tracks }
+}
+
+export function listArtists(database: AppDatabase): ArtistGroup[] {
+  return groupArtists(listTracks(database))
+}
+
+export function findArtistByKey(database: AppDatabase, key: string): ArtistGroup | null {
+  let parts = decodeGroupingKey(key)
+  if (parts?.length !== 1) {
+    return null
+  }
+  let artist = parts[0]!
+  let tracks = listTracks(database)
+  let hasArtist = tracks.some((track) => track.artist === artist || track.albumArtist === artist)
+  if (!hasArtist) {
+    return null
+  }
+  return buildArtistGroup(tracks, artist)
+}
+
+export function tracksForArtistPlay(artist: ArtistGroup): Track[] {
+  let seen = new Set<string>()
+  let ordered: Track[] = []
+  for (let album of artist.albums) {
+    for (let track of album.tracks) {
+      if (!seen.has(track.id)) {
+        seen.add(track.id)
+        ordered.push(track)
+      }
+    }
+  }
+  for (let track of artist.tracks) {
+    if (!seen.has(track.id)) {
+      seen.add(track.id)
+      ordered.push(track)
+    }
+  }
+  return ordered
+}
+
+function encodeGroupingKey(parts: readonly string[]): string {
+  return Buffer.from(parts.join('\0'), 'utf8').toString('base64url')
+}
+
+function decodeGroupingKey(key: string): string[] | null {
+  if (!key) {
+    return null
+  }
+  try {
+    let decoded = Buffer.from(key, 'base64url').toString('utf8')
+    if (Buffer.from(decoded, 'utf8').toString('base64url') !== key) {
+      return null
+    }
+    return decoded.split('\0')
+  } catch {
+    return null
+  }
+}
+
+function groupAlbums(tracks: Track[]): AlbumGroup[] {
+  let groups = new Map<string, AlbumGroup>()
+  for (let track of tracks) {
+    let key = albumGroupingKey(track.albumArtist, track.album)
+    let group = groups.get(key)
+    if (!group) {
+      group = {
+        key,
+        album: track.album,
+        albumArtist: track.albumArtist,
+        tracks: [],
+      }
+      groups.set(key, group)
+    }
+    group.tracks.push(track)
+  }
+  for (let group of groups.values()) {
+    group.tracks.sort(compareAlbumTracks)
+  }
+  return [...groups.values()].sort((left, right) => {
+    let artist = left.albumArtist.localeCompare(right.albumArtist)
+    if (artist !== 0) {
+      return artist
+    }
+    return left.album.localeCompare(right.album)
+  })
+}
+
+function groupArtists(tracks: Track[]): ArtistGroup[] {
+  let names = new Set<string>()
+  for (let track of tracks) {
+    names.add(track.artist)
+    names.add(track.albumArtist)
+  }
+  return [...names]
+    .sort((left, right) => left.localeCompare(right))
+    .map((artist) => buildArtistGroup(tracks, artist))
+}
+
+function buildArtistGroup(tracks: Track[], artist: string): ArtistGroup {
+  let albums = groupAlbums(tracks.filter((track) => track.albumArtist === artist))
+  let matching = tracks.filter((track) => track.artist === artist)
+  matching.sort(compareAlbumTracks)
+  return {
+    key: artistGroupingKey(artist),
+    artist,
+    albums,
+    tracks: matching,
+  }
+}
+
+function compareAlbumTracks(left: Track, right: Track) {
+  let disc = (left.discNumber ?? 0) - (right.discNumber ?? 0)
+  if (disc !== 0) {
+    return disc
+  }
+  let number = (left.trackNumber ?? 0) - (right.trackNumber ?? 0)
+  if (number !== 0) {
+    return number
+  }
+  return left.path.localeCompare(right.path)
+}
+
 async function runScan(
   database: AppDatabase,
   config: AppConfig,

@@ -31,9 +31,13 @@ import {
 } from '../modules/auth/index.ts'
 import { publicOrigin, type AppConfig } from '../modules/config/index.ts'
 import {
+  findAlbumByKey,
+  findArtistByKey,
   getScanStatus,
   isLibraryMountHealthy,
   LibraryError,
+  listAlbums,
+  listArtists,
   listTracks,
   startScan,
   type ScanAdapter,
@@ -55,7 +59,9 @@ import { routes } from '../routes.ts'
 import { mediaHrefFor } from '../ui/app-chrome.tsx'
 import { InvitesPage } from '../ui/invites-page.tsx'
 import { JoinPage } from '../ui/join-page.tsx'
-import { LibraryHomePage } from '../ui/library-home-page.tsx'
+import { AlbumDetailPage } from '../ui/album-detail-page.tsx'
+import { ArtistDetailPage } from '../ui/artist-detail-page.tsx'
+import { LibraryHomePage, type LibraryFacet } from '../ui/library-home-page.tsx'
 import { LoginPage } from '../ui/login-page.tsx'
 import { PlaylistsPage } from '../ui/playlists-page.tsx'
 import { SearchPage } from '../ui/search-page.tsx'
@@ -80,23 +86,37 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
       home: {
         middleware: [requireSignedIn(config, database)],
         async handler(context) {
-          let member = signedInOrThrow(context)
-          let forced = passwordChangeRedirect(config, member)
-          if (forced) {
-            return forced
-          }
-          let error = context.get(Session).get('error')
-          return context.render(
-            <LibraryHomePage
-              member={member}
-              session={getListeningSession(database, member)}
-              tracks={listTracks(database)}
-              recentlyPlayed={listRecentlyPlayed(database, member)}
-              resume={getListenResume(database, member)}
-              chrome={await loadChrome(config, database, member)}
-              error={typeof error === 'string' ? error : undefined}
-            />,
-          )
+          return renderLibraryHome(context, config, database, 'albums')
+        },
+      },
+      libraryAlbums: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return renderLibraryHome(context, config, database, 'albums')
+        },
+      },
+      libraryArtists: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return renderLibraryHome(context, config, database, 'artists')
+        },
+      },
+      libraryTracks: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return renderLibraryHome(context, config, database, 'tracks')
+        },
+      },
+      libraryAlbum: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return renderAlbumDetail(context, config, database, context.params.albumKey)
+        },
+      },
+      libraryArtist: {
+        middleware: [requireSignedIn(config, database)],
+        async handler(context) {
+          return renderArtistDetail(context, config, database, context.params.artistKey)
         },
       },
       playlists: {
@@ -506,6 +526,71 @@ export function createSettingsController({ config, database }: AppDeps) {
   })
 }
 
+async function renderAlbumDetail(
+  context: { get: (key: any) => any; render: (node: any) => Response },
+  config: AppConfig,
+  database: AppDatabase,
+  albumKey: string,
+): Promise<Response> {
+  let member = signedInOrThrow(context)
+  let forced = passwordChangeRedirect(config, member)
+  if (forced) {
+    return forced
+  }
+  return context.render(
+    <AlbumDetailPage
+      album={findAlbumByKey(database, albumKey)}
+      chrome={await loadChrome(config, database, member)}
+    />,
+  )
+}
+
+async function renderArtistDetail(
+  context: { get: (key: any) => any; render: (node: any) => Response },
+  config: AppConfig,
+  database: AppDatabase,
+  artistKey: string,
+): Promise<Response> {
+  let member = signedInOrThrow(context)
+  let forced = passwordChangeRedirect(config, member)
+  if (forced) {
+    return forced
+  }
+  return context.render(
+    <ArtistDetailPage
+      artist={findArtistByKey(database, artistKey)}
+      chrome={await loadChrome(config, database, member)}
+    />,
+  )
+}
+
+async function renderLibraryHome(
+  context: { get: (key: any) => any; render: (node: any) => Response },
+  config: AppConfig,
+  database: AppDatabase,
+  facet: LibraryFacet,
+): Promise<Response> {
+  let member = signedInOrThrow(context)
+  let forced = passwordChangeRedirect(config, member)
+  if (forced) {
+    return forced
+  }
+  let error = context.get(Session).get('error')
+  return context.render(
+    <LibraryHomePage
+      member={member}
+      tracks={listTracks(database)}
+      albums={listAlbums(database)}
+      artists={listArtists(database)}
+      recentlyPlayed={listRecentlyPlayed(database, member)}
+      resume={getListenResume(database, member)}
+      facet={facet}
+      chrome={await loadChrome(config, database, member)}
+      error={typeof error === 'string' ? error : undefined}
+    />,
+  )
+}
+
 async function loadChrome(config: AppConfig, database: AppDatabase, member: HouseholdMember) {
   let session = getListeningSession(database, member)
   let current = session.currentTrack
@@ -523,6 +608,14 @@ function scanReturnTo(context: { get: (key: any) => any }): string {
     return next
   }
   return routes.settings.index.href()
+}
+
+function sessionReturnTo(formData: FormData): string {
+  let next = String(formData.get('next') ?? '')
+  if (next.startsWith('/') && !next.startsWith('//') && !next.includes('\\')) {
+    return next
+  }
+  return routes.home.href()
 }
 
 function passwordChangeRedirect(config: AppConfig, member: HouseholdMember) {
@@ -562,7 +655,8 @@ function runSessionMutation(
         .filter(Boolean)
       let startAtRaw = String(formData.get('startAt') ?? '')
       let startAt = startAtRaw === '' ? 0 : Number.parseInt(startAtRaw, 10)
-      playIntoSession(database, member, { trackIds, startAt })
+      let shuffle = formData.get('shuffle') === '1' || formData.get('shuffle') === 'true'
+      playIntoSession(database, member, { trackIds, startAt, shuffle })
     } else if (intent === 'play-next') {
       playNext(database, member, String(formData.get('trackId') ?? ''))
     } else if (intent === 'add-to-queue') {
@@ -582,7 +676,7 @@ function runSessionMutation(
     throw error
   }
 
-  return publicRedirect(config, routes.home.href())
+  return publicRedirect(config, sessionReturnTo(formData))
 }
 
 function parseSessionPatch(formData: FormData) {

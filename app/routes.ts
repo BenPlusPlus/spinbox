@@ -3,6 +3,11 @@ import { form, get, route } from 'remix/routes'
 export const routes = route({
   assets: get('/assets/*path'),
   home: '/',
+  libraryAlbums: '/library/albums',
+  libraryAlbum: '/library/albums/:albumKey',
+  libraryArtists: '/library/artists',
+  libraryArtist: '/library/artists/:artistKey',
+  libraryTracks: '/library/tracks',
   setup: form('/setup'),
   login: form('/login'),
   logout: { method: 'POST', pattern: '/logout' },

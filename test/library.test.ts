@@ -15,11 +15,17 @@ import {
 } from '../app/modules/auth/index.ts'
 import { loadConfig, type AppConfig } from '../app/modules/config/index.ts'
 import {
+  albumGroupingKey,
+  artistGroupingKey,
+  findAlbumByKey,
+  findArtistByKey,
   findTrackById,
   findTrackByPath,
   getScanStatus,
   isLibraryMember,
   LibraryError,
+  listAlbums,
+  listArtists,
   listTracks,
   resolveTrackMetadata,
   startScan,
@@ -468,6 +474,151 @@ describe('Scan run', () => {
   })
 })
 
+describe('Library browse groupings', () => {
+  let tempRoot: string | undefined
+  let database: AppDatabase | undefined
+
+  afterEach(async () => {
+    database?.close()
+    database = undefined
+    if (tempRoot) {
+      await fs.rm(tempRoot, { recursive: true, force: true })
+      tempRoot = undefined
+    }
+  })
+
+  async function freshIndex() {
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'spinbox-browse-'))
+    let config = loadConfig({
+      NODE_ENV: 'production',
+      LIBRARY_ROOT: path.join(tempRoot, 'library'),
+      SPINBOX_DATA_DIR: path.join(tempRoot, 'app-data'),
+      SPINBOX_PUBLIC_URL: 'https://spinbox.example.ts.net',
+      PORT: '44100',
+      SESSION_SECRET: 'test-session-secret-at-least-16',
+    })
+    await fs.mkdir(config.libraryRoot, { recursive: true })
+    database = await openDatabase(config)
+    return database
+  }
+
+  it('groups Albums by album + Album artist with disc-then-track order and a stable key', async () => {
+    let db = await freshIndex()
+    insertIndexedTrack(db, {
+      id: 'hey-you',
+      path: 'Pink Floyd/The Wall/Disc 2/01 - Hey You.flac',
+      title: 'Hey You',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 2,
+      trackNumber: 1,
+    })
+    insertIndexedTrack(db, {
+      id: 'flesh',
+      path: 'Pink Floyd/The Wall/Disc 1/01 - In the Flesh.flac',
+      title: 'In the Flesh',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 1,
+      trackNumber: 1,
+    })
+    insertIndexedTrack(db, {
+      id: 'airbag',
+      path: 'Radiohead/OK Computer/01 - Airbag.mp3',
+      title: 'Airbag',
+      artist: 'Radiohead',
+      album: 'OK Computer',
+      albumArtist: 'Radiohead',
+    })
+    insertIndexedTrack(db, {
+      id: 'guest',
+      path: 'Various Artists/Now 1/01 - Guest Hit.m4a',
+      title: 'Guest Hit',
+      artist: 'Blur',
+      album: 'Now 1',
+      albumArtist: 'Various Artists',
+    })
+
+    let albums = listAlbums(db)
+    assert.deepEqual(
+      albums.map((album) => `${album.albumArtist} / ${album.album}`),
+      ['Pink Floyd / The Wall', 'Radiohead / OK Computer', 'Various Artists / Now 1'],
+    )
+    assert.deepEqual(
+      albums[0]!.tracks.map((track) => track.id),
+      ['flesh', 'hey-you'],
+    )
+    assert.equal(albums[0]!.key, albumGroupingKey('Pink Floyd', 'The Wall'))
+    assert.equal(albums[2]!.albumArtist, 'Various Artists')
+    assert.equal(albums[2]!.tracks[0]!.artist, 'Blur')
+
+    let wall = findAlbumByKey(db, albumGroupingKey('Pink Floyd', 'The Wall'))
+    assert.ok(wall)
+    assert.equal(wall.album, 'The Wall')
+    assert.equal(wall.albumArtist, 'Pink Floyd')
+    assert.deepEqual(
+      wall.tracks.map((track) => track.title),
+      ['In the Flesh', 'Hey You'],
+    )
+    assert.equal(findAlbumByKey(db, albumGroupingKey('Pink Floyd', 'Missing')), null)
+  })
+
+  it('lists Artists as display-string groupings with their Albums and matching Tracks', async () => {
+    let db = await freshIndex()
+    insertIndexedTrack(db, {
+      id: 'airbag',
+      path: 'Radiohead/OK Computer/01 - Airbag.mp3',
+      title: 'Airbag',
+      artist: 'Radiohead',
+      album: 'OK Computer',
+      albumArtist: 'Radiohead',
+    })
+    insertIndexedTrack(db, {
+      id: 'guest',
+      path: 'Various Artists/Now 1/01 - Guest Hit.m4a',
+      title: 'Guest Hit',
+      artist: 'Blur',
+      album: 'Now 1',
+      albumArtist: 'Various Artists',
+    })
+
+    let artists = listArtists(db)
+    assert.deepEqual(
+      artists.map((artist) => artist.artist),
+      ['Blur', 'Radiohead', 'Various Artists'],
+    )
+
+    let radiohead = findArtistByKey(db, artistGroupingKey('Radiohead'))
+    assert.ok(radiohead)
+    assert.deepEqual(
+      radiohead.albums.map((album) => album.album),
+      ['OK Computer'],
+    )
+    assert.deepEqual(
+      radiohead.tracks.map((track) => track.title),
+      ['Airbag'],
+    )
+
+    let blur = findArtistByKey(db, artistGroupingKey('Blur'))
+    assert.ok(blur)
+    assert.deepEqual(blur.albums, [])
+    assert.deepEqual(
+      blur.tracks.map((track) => track.title),
+      ['Guest Hit'],
+    )
+
+    let various = findArtistByKey(db, artistGroupingKey('Various Artists'))
+    assert.ok(various)
+    assert.deepEqual(
+      various.albums.map((album) => album.album),
+      ['Now 1'],
+    )
+    assert.equal(findArtistByKey(db, artistGroupingKey('Missing')), null)
+  })
+})
+
 async function runScanToIdle(
   database: AppDatabase,
   config: AppConfig,
@@ -541,4 +692,41 @@ function id3TextFrame(id: string, value: string): Buffer {
   frame.writeUInt32BE(payload.length, 4)
   payload.copy(frame, 10)
   return frame
+}
+
+function insertIndexedTrack(
+  database: AppDatabase,
+  input: {
+    id: string
+    path: string
+    title: string
+    artist: string
+    album: string
+    albumArtist: string
+    discNumber?: number | null
+    trackNumber?: number | null
+  },
+) {
+  database.sqlite
+    .prepare(
+      `INSERT INTO tracks (
+         id, path, title, artist, album, album_artist, disc_number, track_number,
+         duration_ms, mime, mtime_ms, size, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      input.id,
+      input.path,
+      input.title,
+      input.artist,
+      input.album,
+      input.albumArtist,
+      input.discNumber ?? null,
+      input.trackNumber ?? null,
+      null,
+      'audio/mpeg',
+      Date.now(),
+      1,
+      new Date().toISOString(),
+    )
 }

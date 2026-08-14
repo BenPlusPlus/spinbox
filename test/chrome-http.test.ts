@@ -111,7 +111,6 @@ describe('app chrome after sign-in', () => {
     assert.equal(home.status, 200)
     let html = await home.text()
     assert.match(html, /Library storage is unavailable/)
-    assert.match(html, /Airbag/)
     assert.match(html, /OK Computer/)
   })
 
