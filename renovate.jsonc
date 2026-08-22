@@ -1,0 +1,33 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":pinAllExceptPeerDependencies"
+  ],
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "description": "Automerge non-major npm updates. Skip 0.x (SemVer allows breaks there).",
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true
+    },
+    {
+      "description": "Track remix@next. Manual merge: beta can break. No 3-day age wait.",
+      "matchPackageNames": ["remix"],
+      "followTag": "next",
+      "automerge": false,
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Do not bump engines.node automatically.",
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    }
+  ]
+}
