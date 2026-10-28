@@ -23,7 +23,7 @@ This document is the handoff artifact for implementing Spinbox. It compiles prod
 | Core surfaces | Browse, search, play, private playlists, vinyl-inspired **Now playing** |
 | Client | Responsive web (phone on the couch is a first-class form factor) |
 | Access | Private-first: household **Tailscale** tailnet HTTPS (MagicDNS + Serve → loopback) |
-| Stack | **Remix 3** (`remix@next`, Node ≥ 24.3, non-React `remix/ui`) + first-party **`remix/auth`** |
+| Stack | **Remix 3** (`remix@next`, Node ≥ 24.3, non-React `remix/component`) + first-party **`remix/auth`** |
 
 ### Success for v1 (implementation-complete)
 
@@ -394,7 +394,7 @@ Ring of last **50 distinct** Tracks — light continue-listening UI, not a scrob
 - **Full-route** Now playing **plus** persistent **mini-dock** when browsing.
 - Dock **hidden** when idle (no current Track).
 - Prototype asset: branch `prototype/vinyl-now-playing` → `prototypes/vinyl-now-playing/index.html`.
-- Implementation: `remix/ui` **client islands** in `app/assets` / `app/ui`.
+- Implementation: `remix/component` **client islands** in `app/assets` / `app/ui`.
 
 ### Primary destinations
 

@@ -3,8 +3,8 @@ import * as path from 'node:path'
 import type { Router } from 'remix/router'
 import { renderWith } from 'remix/middleware/render'
 import { createHtmlResponse } from 'remix/response/html'
-import type { RemixNode } from 'remix/ui'
-import { renderToStream } from 'remix/ui/server'
+import type { RemixNode } from 'remix/component'
+import { renderToStream } from 'remix/component/server'
 
 import { assetServer } from '../assets.ts'
 

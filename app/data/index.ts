@@ -4,10 +4,9 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 
-import { createDatabase, type Database } from 'remix/data-table'
-import { createMigrationRunner } from 'remix/data-table/migrations'
+import { type Database } from 'remix/data-table'
 import { loadMigrations } from 'remix/data-table/migrations/node'
-import { createSqliteDatabaseAdapter } from 'remix/data-table/sqlite'
+import { createSqliteDatabase } from 'remix/data-table/sqlite'
 
 import type { AppConfig } from '../modules/config/index.ts'
 
@@ -35,11 +34,9 @@ export async function openDatabase(config: Pick<AppConfig, 'dataDir'>): Promise<
   sqlite.exec('PRAGMA journal_mode = WAL')
   sqlite.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`)
 
-  let adapter = createSqliteDatabaseAdapter(sqlite)
-  let db = createDatabase(adapter)
+  let db = createSqliteDatabase(sqlite)
   let migrations = await loadMigrations(migrationsDir)
-  let runner = createMigrationRunner(adapter, migrations)
-  await runner.up()
+  await db.migrate(migrations)
 
   return {
     path: filePath,

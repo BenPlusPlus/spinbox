@@ -1,4 +1,4 @@
-import { clientEntry, css, on, ref, type Handle, type RemixNode } from 'remix/ui'
+import { clientEntry, css, on, ref, type Handle, type RemixNode } from 'remix/component'
 
 import { routes } from '../routes.ts'
 

@@ -1,4 +1,4 @@
-import { clientEntry, on, type Handle } from 'remix/ui'
+import { clientEntry, on, type Handle } from 'remix/component'
 
 import { trackActions, type PlaylistChoice } from '../ui/library-play.tsx'
 
