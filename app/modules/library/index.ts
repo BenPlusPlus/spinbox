@@ -326,7 +326,7 @@ export function getScanStatus(database: AppDatabase): ScanStatus {
       `SELECT id, status, started_at, finished_at, tracks_seen, tracks_upserted, tracks_pruned, error
        FROM scan_runs
        WHERE status IN ('succeeded', 'failed')
-       ORDER BY finished_at DESC
+       ORDER BY finished_at DESC, started_at DESC, rowid DESC
        LIMIT 1`,
     )
     .get() as ScanRunRow | undefined
