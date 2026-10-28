@@ -6,9 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 
 import * as assert from 'remix/assert'
-import { createMigrationRunner } from 'remix/data-table/migrations'
 import { loadMigrations } from 'remix/data-table/migrations/node'
-import { createSqliteDatabaseAdapter } from 'remix/data-table/sqlite'
+import { createSqliteDatabase } from 'remix/data-table/sqlite'
 
 import { BUSY_TIMEOUT_MS, DATABASE_FILENAME, openDatabase, type AppDatabase } from '../app/data/index.ts'
 import { loadConfig } from '../app/modules/config/index.ts'
@@ -147,7 +146,7 @@ async function seedFirstPlaybackDatabase(dataDir: string) {
   let sqlite = new DatabaseSync(path.join(dataDir, DATABASE_FILENAME), { timeout: BUSY_TIMEOUT_MS })
   sqlite.exec('PRAGMA journal_mode = WAL')
   sqlite.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`)
-  let adapter = createSqliteDatabaseAdapter(sqlite)
+  let db = createSqliteDatabase(sqlite)
   let migrations = (await loadMigrations(migrationsDir)).flatMap((migration) => {
     if (migration.name === 'listen_resume') {
       return []
@@ -157,7 +156,6 @@ async function seedFirstPlaybackDatabase(dataDir: string) {
     }
     return [migration]
   })
-  let runner = createMigrationRunner(adapter, migrations)
-  await runner.up()
+  await db.migrate(migrations)
   sqlite.close()
 }

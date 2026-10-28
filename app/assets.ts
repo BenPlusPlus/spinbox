@@ -7,11 +7,8 @@ const isDevelopment = nodeEnv === 'development'
 export const assetServer = createAssetServer({
   basePath: '/assets',
   rootDir,
-  fileMap: {
-    'app/*path': 'app/*path',
-    'node_modules/*path': 'node_modules/*path',
-  },
-  allow: ['app/assets/**', 'app/ui/**', 'app/routes.ts', 'node_modules/**'],
+  allowFiles: ['app/assets/**', 'app/ui/**', 'app/routes.ts'],
+  allowPackages: ['remix'],
   sourceMaps: isDevelopment ? 'external' : undefined,
   minify: !isDevelopment,
   watch: false,

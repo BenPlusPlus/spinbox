@@ -2,7 +2,7 @@
 
 Household self-hosted web music player. **This checkout is still mostly dev-only.** First Admin setup, cookie sign-in, and Admin Library Scan runs work; media streaming and playback are not built yet.
 
-The app is a single-package [Remix 3](https://remix.run/) (`remix@next`) process. UI is `remix/ui`, not React. Auth is first-party `remix/auth` plus app-owned Household member tables — not Better Auth.
+The app is a single-package [Remix 3](https://remix.run/) (`remix@next`) process. UI is `remix/component`, not React. Auth is first-party `remix/auth` plus app-owned Household member tables — not Better Auth.
 
 Requires **Node ≥ 24.3**.
 

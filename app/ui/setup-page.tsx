@@ -1,4 +1,4 @@
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 import { routes } from '../routes.ts'
 import { AuthShell, field, fieldStack, input, submit } from './auth-shell.tsx'

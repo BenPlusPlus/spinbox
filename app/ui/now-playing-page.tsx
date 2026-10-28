@@ -1,4 +1,4 @@
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 import { PlayerIsland, playerProps, type PlayerSnapshot } from '../assets/player.tsx'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
