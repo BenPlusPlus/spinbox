@@ -28,4 +28,5 @@ export const routes = route({
   scanNow: { method: 'POST', pattern: '/settings/scan' },
   session: { method: 'POST', pattern: '/session' },
   mediaTrack: get('/media/tracks/:trackId'),
+  mediaArtwork: get('/media/artwork/:trackId'),
 })

@@ -479,6 +479,20 @@ describe('Listen resume and Recently played', () => {
     )
   })
 
+  it('reports when each Recently played Track was played', async () => {
+    let { database: db, member } = await freshPlayback()
+    insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })
+    let before = Date.now()
+
+    playIntoSession(db, member, { trackIds: ['airbag'] })
+
+    let [recent] = listRecentlyPlayed(db, member)
+    assert.ok(recent)
+    assert.equal(recent.id, 'airbag')
+    assert.match(recent.playedAt, /^\d{4}-\d{2}-\d{2}T/)
+    assert.ok(Date.parse(recent.playedAt) >= before - 1000)
+  })
+
   it('continues the last-active Track from its stored Listen resume position', async () => {
     let { database: db, member } = await freshPlayback()
     insertTrack(db, { id: 'airbag', title: 'Airbag', album: 'OK Computer' })

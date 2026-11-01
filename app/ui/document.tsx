@@ -1,7 +1,7 @@
 import type { Handle, RemixNode } from 'remix/component'
-import { css } from 'remix/component'
 
 import { routes } from '../routes.ts'
+import { color, globalStyles } from './theme.ts'
 
 export interface DocumentProps {
   children?: RemixNode
@@ -18,12 +18,20 @@ export function Document(handle: Handle<DocumentProps>) {
         <head>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <meta name="theme-color" content={color.night} />
           <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+          <link
+            rel="preload"
+            href="/fonts/archivo-latin.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
           <title>{title}</title>
           {head}
-          <style>{`@keyframes spinbox-vinyl { to { transform: rotate(360deg); } }`}</style>
+          <style>{globalStyles}</style>
         </head>
-        <body mix={css({ margin: 0 })}>
+        <body>
           {children}
           <script type="module" src={routes.assets.href({ path: 'app/assets/entry.ts' })}></script>
         </body>

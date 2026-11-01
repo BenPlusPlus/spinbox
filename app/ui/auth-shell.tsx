@@ -2,6 +2,16 @@ import type { Handle, RemixNode } from 'remix/component'
 import { css } from 'remix/component'
 
 import { Document } from './document.tsx'
+import { icon } from './icons.tsx'
+import {
+  btnPrimary,
+  color,
+  field as themeField,
+  font,
+  input as themeInput,
+  pageLede,
+  wide,
+} from './theme.ts'
 
 export interface AuthShellProps {
   children?: RemixNode
@@ -10,66 +20,29 @@ export interface AuthShellProps {
   error?: string
 }
 
-let page = css({
-  minHeight: '100vh',
-  display: 'grid',
-  placeItems: 'center',
-  padding: '2rem 1.25rem',
-  background: '#1a1410',
-  color: '#f4efe6',
-  fontFamily: 'Georgia, "Times New Roman", serif',
-})
-
-let card = css({
-  width: 'min(26rem, 100%)',
-  padding: '2rem 1.75rem 1.75rem',
-  background: '#f4efe6',
-  color: '#1a1410',
-  borderRadius: '2px',
-  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
-})
-
-let wordmark = css({
-  margin: '0 0 0.35rem',
-  fontSize: '0.85rem',
-  letterSpacing: '0.18em',
-  textTransform: 'uppercase',
-  color: '#8a6a4a',
-})
-
-let heading = css({
-  margin: '0 0 0.5rem',
-  fontSize: '1.85rem',
-  fontWeight: 600,
-})
-
-let lead = css({
-  margin: '0 0 1.5rem',
-  lineHeight: 1.45,
-  color: '#4a4038',
-})
-
-let errorBox = css({
-  margin: '0 0 1rem',
-  padding: '0.65rem 0.75rem',
-  background: '#f3d6cc',
-  color: '#6b2414',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
-})
-
 export function AuthShell(handle: Handle<AuthShellProps>) {
   return () => {
     let { children, title, lead: leadText, error } = handle.props
 
     return (
       <Document title={`${title} · Spinbox`}>
-        <main mix={page}>
-          <section mix={card}>
+        <main mix={page} data-surface="night">
+          <div mix={brand}>
+            <span mix={brandRecord} aria-hidden="true">
+              <span mix={brandLabel}></span>
+            </span>
             <p mix={wordmark}>Spinbox</p>
+            <p mix={tagline}>The household record player.</p>
+          </div>
+          <section mix={card}>
             <h1 mix={heading}>{title}</h1>
-            {leadText ? <p mix={lead}>{leadText}</p> : null}
-            {error ? <p mix={errorBox}>{error}</p> : null}
+            {leadText ? <p mix={[pageLede, lead]}>{leadText}</p> : null}
+            {error ? (
+              <p mix={errorBox} role="alert">
+                {icon('alert')}
+                <span>{error}</span>
+              </p>
+            ) : null}
             {children}
           </section>
         </main>
@@ -80,34 +53,134 @@ export function AuthShell(handle: Handle<AuthShellProps>) {
 
 export let fieldStack = css({
   display: 'grid',
-  gap: '0.9rem',
+  gap: '1rem',
 })
 
-export let field = css({
+export let field = themeField
+
+export let input = themeInput
+
+let submitFull = css({
+  marginTop: '0.5rem',
+  width: '100%',
+})
+
+export let submit = [btnPrimary, submitFull]
+
+let page = css({
+  minHeight: '100dvh',
   display: 'grid',
-  gap: '0.35rem',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
+  alignContent: 'center',
+  justifyItems: 'center',
+  gap: '2rem',
+  padding: '2.5rem 1.25rem',
+  background: color.night,
+  color: color.paper,
+  [wide]: {
+    gridTemplateColumns: 'minmax(0, 22rem) minmax(0, 27rem)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '5rem',
+  },
 })
 
-export let input = css({
-  padding: '0.65rem 0.7rem',
-  border: '1px solid #c4b8a8',
-  borderRadius: '2px',
-  background: '#fffdf8',
-  font: 'inherit',
-  color: 'inherit',
+let brand = css({
+  display: 'grid',
+  justifyItems: 'center',
+  gap: '0.5rem',
+  textAlign: 'center',
+  [wide]: {
+    justifyItems: 'start',
+    textAlign: 'left',
+  },
 })
 
-export let submit = css({
-  marginTop: '0.4rem',
-  padding: '0.7rem 0.9rem',
-  border: 0,
-  borderRadius: '2px',
-  background: '#1a1410',
-  color: '#f4efe6',
-  font: 'inherit',
-  fontWeight: 600,
-  letterSpacing: '0.02em',
-  cursor: 'pointer',
+let brandRecord = css({
+  display: 'none',
+  [wide]: {
+    display: 'grid',
+    placeItems: 'center',
+    width: '15rem',
+    height: '15rem',
+    marginBottom: '1.5rem',
+    borderRadius: '50%',
+    background: `repeating-radial-gradient(circle at center, #0b0d12 0 2px, #171a22 2px 3px)`,
+    boxShadow: `0 0 0 1px ${color.nightLine}`,
+  },
+})
+
+let brandLabel = css({
+  width: '36%',
+  height: '36%',
+  borderRadius: '50%',
+  background: color.red,
+  boxShadow: `inset 0 0 0 0.45rem ${color.red}, inset 0 0 0 0.5rem ${color.redInk}`,
+  position: 'relative',
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    inset: '46%',
+    borderRadius: '50%',
+    background: color.night,
+  },
+})
+
+let wordmark = css({
+  margin: 0,
+  fontStretch: font.condensed,
+  fontWeight: 800,
+  fontSize: 'clamp(2.75rem, 5vw + 1rem, 4.5rem)',
+  lineHeight: 0.9,
+  letterSpacing: '0.01em',
+  textTransform: 'uppercase',
+})
+
+let tagline = css({
+  margin: 0,
+  color: color.nightMute,
+  fontSize: '1rem',
+})
+
+let card = css({
+  width: 'min(27rem, 100%)',
+  padding: '1.75rem 1.5rem 1.6rem',
+  background: color.paper,
+  color: color.ink,
+  borderTop: `3px solid ${color.ink}`,
+  '@media (min-width: 30rem)': {
+    padding: '2.25rem 2rem 2rem',
+  },
+})
+
+let heading = css({
+  margin: '0 0 0.6rem',
+  paddingBottom: '0.75rem',
+  borderBottom: `3px solid ${color.ink}`,
+  fontStretch: font.condensed,
+  fontWeight: 800,
+  fontSize: '2.5rem',
+  lineHeight: 0.95,
+  textTransform: 'uppercase',
+})
+
+let lead = css({
+  margin: '0 0 1.5rem',
+})
+
+let errorBox = css({
+  display: 'flex',
+  gap: '0.6rem',
+  alignItems: 'start',
+  margin: '0 0 1.25rem',
+  padding: '0.75rem 0.9rem',
+  border: `1.5px solid ${color.redInk}`,
+  background: color.sheet,
+  lineHeight: 1.45,
+  '& svg': {
+    flex: 'none',
+    width: '1.2rem',
+    height: '1.2rem',
+    marginTop: '0.1rem',
+    color: color.redInk,
+  },
 })

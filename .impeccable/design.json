@@ -1,0 +1,474 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T05:20:01+00:00",
+  "title": "Design System: Spinbox",
+  "extensions": {
+    "colorMeta": {
+      "night": {
+        "role": "primary",
+        "displayName": "Programme Night",
+        "canonical": "oklch(26.1% 0.079 270.1)",
+        "tonalRamp": [
+          "oklch(15% 0.040 270.1)",
+          "oklch(26% 0.050 270.1)",
+          "oklch(38% 0.062 270.1)",
+          "oklch(49% 0.073 270.1)",
+          "oklch(61% 0.073 270.1)",
+          "oklch(72% 0.062 270.1)",
+          "oklch(84% 0.050 270.1)",
+          "oklch(95% 0.040 270.1)"
+        ]
+      },
+      "night-raised": {
+        "role": "primary",
+        "displayName": "Deck Raised",
+        "canonical": "oklch(30.6% 0.094 269.6)",
+        "tonalRamp": [
+          "oklch(15% 0.047 269.6)",
+          "oklch(26% 0.060 269.6)",
+          "oklch(38% 0.074 269.6)",
+          "oklch(49% 0.087 269.6)",
+          "oklch(61% 0.087 269.6)",
+          "oklch(72% 0.074 269.6)",
+          "oklch(84% 0.060 269.6)",
+          "oklch(95% 0.047 269.6)"
+        ]
+      },
+      "night-line": {
+        "role": "neutral",
+        "displayName": "Night Line",
+        "canonical": "oklch(39.4% 0.097 271.6)",
+        "tonalRamp": [
+          "oklch(15% 0.049 271.6)",
+          "oklch(26% 0.062 271.6)",
+          "oklch(38% 0.076 271.6)",
+          "oklch(49% 0.090 271.6)",
+          "oklch(61% 0.090 271.6)",
+          "oklch(72% 0.076 271.6)",
+          "oklch(84% 0.062 271.6)",
+          "oklch(95% 0.049 271.6)"
+        ]
+      },
+      "night-mute": {
+        "role": "neutral",
+        "displayName": "Night Mute",
+        "canonical": "oklch(76.7% 0.054 275.5)",
+        "tonalRamp": [
+          "oklch(15% 0.027 275.5)",
+          "oklch(26% 0.034 275.5)",
+          "oklch(38% 0.043 275.5)",
+          "oklch(49% 0.050 275.5)",
+          "oklch(61% 0.050 275.5)",
+          "oklch(72% 0.043 275.5)",
+          "oklch(84% 0.034 275.5)",
+          "oklch(95% 0.027 275.5)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Newsprint Paper",
+        "canonical": "oklch(95.8% 0.007 97.4)",
+        "tonalRamp": [
+          "oklch(15% 0.007 97.4)",
+          "oklch(26% 0.007 97.4)",
+          "oklch(38% 0.007 97.4)",
+          "oklch(49% 0.007 97.4)",
+          "oklch(61% 0.007 97.4)",
+          "oklch(72% 0.007 97.4)",
+          "oklch(84% 0.007 97.4)",
+          "oklch(95% 0.007 97.4)"
+        ]
+      },
+      "paper-deep": {
+        "role": "neutral",
+        "displayName": "Paper Deep",
+        "canonical": "oklch(92.1% 0.011 95.2)",
+        "tonalRamp": [
+          "oklch(15% 0.011 95.2)",
+          "oklch(26% 0.011 95.2)",
+          "oklch(38% 0.011 95.2)",
+          "oklch(49% 0.011 95.2)",
+          "oklch(61% 0.011 95.2)",
+          "oklch(72% 0.011 95.2)",
+          "oklch(84% 0.011 95.2)",
+          "oklch(95% 0.011 95.2)"
+        ]
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Sheet",
+        "canonical": "oklch(98.5% 0.005 95.1)",
+        "tonalRamp": [
+          "oklch(15% 0.005 95.1)",
+          "oklch(26% 0.005 95.1)",
+          "oklch(38% 0.005 95.1)",
+          "oklch(49% 0.005 95.1)",
+          "oklch(61% 0.005 95.1)",
+          "oklch(72% 0.005 95.1)",
+          "oklch(84% 0.005 95.1)",
+          "oklch(95% 0.005 95.1)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Press Ink",
+        "canonical": "oklch(18.7% 0.011 268.1)",
+        "tonalRamp": [
+          "oklch(15% 0.011 268.1)",
+          "oklch(26% 0.011 268.1)",
+          "oklch(38% 0.011 268.1)",
+          "oklch(49% 0.011 268.1)",
+          "oklch(61% 0.011 268.1)",
+          "oklch(72% 0.011 268.1)",
+          "oklch(84% 0.011 268.1)",
+          "oklch(95% 0.011 268.1)"
+        ]
+      },
+      "mute": {
+        "role": "neutral",
+        "displayName": "Mute Grey",
+        "canonical": "oklch(47.3% 0.027 271.7)",
+        "tonalRamp": [
+          "oklch(15% 0.027 271.7)",
+          "oklch(26% 0.027 271.7)",
+          "oklch(38% 0.027 271.7)",
+          "oklch(49% 0.027 271.7)",
+          "oklch(61% 0.027 271.7)",
+          "oklch(72% 0.027 271.7)",
+          "oklch(84% 0.027 271.7)",
+          "oklch(95% 0.027 271.7)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline Rule",
+        "canonical": "oklch(86.3% 0.01 100.0)",
+        "tonalRamp": [
+          "oklch(15% 0.010 100.0)",
+          "oklch(26% 0.010 100.0)",
+          "oklch(38% 0.010 100.0)",
+          "oklch(49% 0.010 100.0)",
+          "oklch(61% 0.010 100.0)",
+          "oklch(72% 0.010 100.0)",
+          "oklch(84% 0.010 100.0)",
+          "oklch(95% 0.010 100.0)"
+        ]
+      },
+      "on-air-red": {
+        "role": "secondary",
+        "displayName": "On-Air Red",
+        "canonical": "oklch(60.2% 0.215 27.7)",
+        "tonalRamp": [
+          "oklch(15% 0.107 27.7)",
+          "oklch(26% 0.137 27.7)",
+          "oklch(38% 0.169 27.7)",
+          "oklch(49% 0.199 27.7)",
+          "oklch(61% 0.199 27.7)",
+          "oklch(72% 0.169 27.7)",
+          "oklch(84% 0.137 27.7)",
+          "oklch(95% 0.107 27.7)"
+        ]
+      },
+      "red-ink": {
+        "role": "secondary",
+        "displayName": "Red Ink",
+        "canonical": "oklch(53.1% 0.195 28.0)",
+        "tonalRamp": [
+          "oklch(15% 0.098 28.0)",
+          "oklch(26% 0.124 28.0)",
+          "oklch(38% 0.154 28.0)",
+          "oklch(49% 0.180 28.0)",
+          "oklch(61% 0.180 28.0)",
+          "oklch(72% 0.154 28.0)",
+          "oklch(84% 0.124 28.0)",
+          "oklch(95% 0.098 28.0)"
+        ]
+      },
+      "highlight-yellow": {
+        "role": "tertiary",
+        "displayName": "Highlighter Yellow",
+        "canonical": "oklch(83.4% 0.158 89.0)",
+        "tonalRamp": [
+          "oklch(15% 0.079 89.0)",
+          "oklch(26% 0.101 89.0)",
+          "oklch(38% 0.124 89.0)",
+          "oklch(49% 0.146 89.0)",
+          "oklch(61% 0.146 89.0)",
+          "oklch(72% 0.124 89.0)",
+          "oklch(84% 0.101 89.0)",
+          "oklch(95% 0.079 89.0)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Now playing Track title and the idle 'Nothing playing' title."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles over a 3px ink rule."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Facet tabs, Tonight's listing head, Continue title, wordmark, sleeve titles."
+      },
+      "section": {
+        "displayName": "Section",
+        "purpose": "Section titles below a 2px ink rule."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Ledes and reading copy, max 38rem."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Sublines, artists, durations in mute."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, rail items, tabs, field labels."
+      },
+      "caps": {
+        "displayName": "Caps",
+        "purpose": "State tags and played times only; never an eyebrow above a heading."
+      },
+      "clock": {
+        "displayName": "Clock",
+        "purpose": "Projected on-air times, durations, track numbers, counts."
+      }
+    },
+    "shadows": [
+      {
+        "name": "menu-drop",
+        "value": "0 12px 28px -8px rgba(17, 19, 24, 0.35)",
+        "purpose": "Track actions dropdown under its 1.5px ink border."
+      },
+      {
+        "name": "sheet-rise",
+        "value": "0 -16px 32px -12px rgba(17, 19, 24, 0.35)",
+        "purpose": "Play queue sheet rising above the phone dock."
+      },
+      {
+        "name": "sheet-side",
+        "value": "16px 0 40px -16px rgba(17, 19, 24, 0.35)",
+        "purpose": "Play queue sheet opening beside the wide rail."
+      },
+      {
+        "name": "record-ring",
+        "value": "0 0 0 1px #34417A",
+        "purpose": "Hairline edge on the record and mini disc; not elevation."
+      },
+      {
+        "name": "plate-play-ring",
+        "value": "0 0 0 1.5px #111318",
+        "purpose": "Ink ring on the round plate play button."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "All state transitions (160ms) and tonearm drop (700ms)."
+      },
+      {
+        "name": "duration-state",
+        "value": "160ms",
+        "purpose": "Background/colour changes on buttons, rail items, plate-play reveal."
+      },
+      {
+        "name": "edge-swap",
+        "value": "420ms cubic-bezier(0.65, 0, 0.35, 1)",
+        "purpose": "Record turns edge-on (rotateY 90deg) on Track change."
+      },
+      {
+        "name": "tonearm",
+        "value": "700ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Arm rotates -5deg to 24deg when playing."
+      },
+      {
+        "name": "vinyl-spin",
+        "value": "spinbox-vinyl 1.8s linear infinite",
+        "purpose": "Record rotation while playing."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation-duration and transition-duration 0.01ms",
+        "purpose": "prefers-reduced-motion collapses all motion globally."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "row-duration",
+        "value": "30rem"
+      },
+      {
+        "name": "wide",
+        "value": "56rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ink-filled square action; turns night on hover.",
+      "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"square\"><path d=\"M7 4.5v15L19.5 12z\" fill=\"currentColor\" stroke=\"none\"/></svg>Play all</button>",
+      "css": ".ds-btn-primary{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:0.5rem;min-height:2.75rem;padding:0 1.1rem;border:1.5px solid #111318;border-radius:0;background:#111318;color:#F2F1EC;font-stretch:82%;font-weight:750;font-size:0.875rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:background-color 160ms cubic-bezier(0.22,1,0.36,1),color 160ms cubic-bezier(0.22,1,0.36,1)} .ds-btn-primary svg{width:1.15rem;height:1.15rem} .ds-btn-primary:hover{background:#16204A;border-color:#16204A} .ds-btn-primary:focus-visible{outline:2px solid #16204A;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ink outline; inverts to ink fill on hover.",
+      "html": "<button class=\"ds-btn-secondary\">Shuffle</button>",
+      "css": ".ds-btn-secondary{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:0.5rem;min-height:2.75rem;padding:0 1.1rem;border:1.5px solid #111318;border-radius:0;background:transparent;color:#111318;font-stretch:82%;font-weight:750;font-size:0.875rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:background-color 160ms cubic-bezier(0.22,1,0.36,1),color 160ms cubic-bezier(0.22,1,0.36,1)} .ds-btn-secondary:hover{background:#111318;color:#F2F1EC} .ds-btn-secondary:focus-visible{outline:2px solid #16204A;outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Red-ink outline for destructive actions; fills red ink on hover.",
+      "html": "<button class=\"ds-btn-danger\">Hard delete</button>",
+      "css": ".ds-btn-danger{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:inline-flex;align-items:center;min-height:2.75rem;padding:0 1.1rem;border:1.5px solid #C42420;border-radius:0;background:transparent;color:#C42420;font-stretch:82%;font-weight:750;font-size:0.875rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;transition:background-color 160ms cubic-bezier(0.22,1,0.36,1),color 160ms cubic-bezier(0.22,1,0.36,1)} .ds-btn-danger:hover{background:#C42420;color:#F2F1EC} .ds-btn-danger:focus-visible{outline:2px solid #16204A;outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Sheet field with 1.5px ink border, caps label above, flush night focus ring.",
+      "html": "<label class=\"ds-field\">Display name<input class=\"ds-input\" value=\"Ben\"></label>",
+      "css": ".ds-field{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:grid;gap:0.4rem;font-stretch:82%;font-weight:700;font-size:0.8125rem;letter-spacing:0.06em;text-transform:uppercase;color:#111318;max-width:24rem} .ds-input{width:100%;min-height:2.75rem;padding:0.55rem 0.75rem;border:1.5px solid #111318;border-radius:0;background:#FBFAF6;color:#111318;font:inherit;font-stretch:100%;font-weight:400;font-size:1rem;letter-spacing:0;text-transform:none;caret-color:#C42420} .ds-input:focus-visible{outline:2px solid #16204A;outline-offset:0}"
+    },
+    {
+      "name": "Night Rail",
+      "kind": "nav",
+      "refersTo": "rail-item",
+      "description": "Night sidebar: wordmark with red lamp, hairline-ruled items, current item a yellow block.",
+      "html": "<nav class=\"ds-rail\"><span class=\"ds-wordmark\"><span class=\"ds-lamp\"></span>Spinbox</span><div class=\"ds-rail-nav\"><a class=\"ds-rail-item ds-rail-current\" href=\"#\">Library</a><a class=\"ds-rail-item\" href=\"#\">Playlists</a><a class=\"ds-rail-item\" href=\"#\">Settings</a></div></nav>",
+      "css": ".ds-rail{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:flex;flex-direction:column;gap:2.25rem;width:15.5rem;padding:1.5rem 0;background:#16204A;color:#F2F1EC} .ds-wordmark{display:flex;align-items:center;gap:0.6rem;padding:0 1.25rem;font-stretch:68%;font-weight:800;font-size:2rem;line-height:1;text-transform:uppercase} .ds-lamp{width:0.62em;height:0.62em;border-radius:50%;background:radial-gradient(circle,#E5322D 0 22%,currentColor 23% 100%)} .ds-rail-nav{display:grid;border-top:1px solid #34417A} .ds-rail-item{display:flex;align-items:center;min-height:3rem;padding:0 1.25rem;border-bottom:1px solid #34417A;color:#A9B1D6;text-decoration:none;font-stretch:82%;font-weight:700;font-size:0.9375rem;letter-spacing:0.07em;text-transform:uppercase;transition:background-color 160ms cubic-bezier(0.22,1,0.36,1),color 160ms cubic-bezier(0.22,1,0.36,1)} .ds-rail-item:hover{background:#1D2A5E;color:#F2F1EC} .ds-rail-item.ds-rail-current,.ds-rail-item.ds-rail-current:hover{background:#F2C230;color:#111318} .ds-rail-item:focus-visible{outline:2px solid #F2C230;outline-offset:2px}"
+    },
+    {
+      "name": "On-Air Tag",
+      "kind": "chip",
+      "refersTo": "on-air-tag-live",
+      "description": "Live-state tag on the deck: outlined when off air, red-ink block with paper dot when live.",
+      "html": "<div class=\"ds-deckbar\"><span class=\"ds-onair\">Off air</span><span class=\"ds-onair ds-onair-live\">On air</span></div>",
+      "css": ".ds-deckbar{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:flex;gap:1rem;padding:1rem;background:#16204A} .ds-onair{display:inline-flex;align-items:center;gap:0.45rem;min-height:1.75rem;padding:0 0.6rem;border:1.5px solid #34417A;color:#A9B1D6;font-stretch:82%;font-weight:800;font-size:0.75rem;letter-spacing:0.12em;text-transform:uppercase} .ds-onair-live{border-color:#C42420;background:#C42420;color:#F2F1EC} .ds-onair-live::before{content:'';width:0.45rem;height:0.45rem;border-radius:50%;background:#F2F1EC}"
+    },
+    {
+      "name": "Tonight's Listing",
+      "kind": "custom",
+      "refersTo": "listing-row-current",
+      "description": "Play queue as a timetable: 3px ink head, tabular projected on-air clocks, current row yellow.",
+      "html": "<section class=\"ds-listing\"><h2 class=\"ds-listing-head\"><span>Tonight's listing</span><span class=\"ds-count\">Up next · 1 Track</span></h2><ol class=\"ds-rows\"><li class=\"ds-row ds-row-current\"><span class=\"ds-clock\">11:15 PM</span><span class=\"ds-main\"><b>In the Flesh</b><small>Pink Floyd</small></span><span class=\"ds-dur\">3:19</span><span class=\"ds-now\">On air</span></li><li class=\"ds-row\"><span class=\"ds-clock\">11:18 PM</span><span class=\"ds-main\"><b>The Thin Ice</b><small>Pink Floyd</small></span><span class=\"ds-dur\">2:27</span><span></span></li></ol></section>",
+      "css": ".ds-listing{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;max-width:30rem;background:#F2F1EC;color:#111318;padding:1rem} .ds-listing-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin:0;padding:0.6rem 0 0.7rem;border-top:3px solid #111318;font-stretch:68%;font-weight:800;font-size:1.5rem;line-height:1;text-transform:uppercase} .ds-count{color:#565B6B;font-stretch:82%;font-weight:700;font-size:0.75rem;letter-spacing:0.08em} .ds-rows{margin:0;padding:0;list-style:none;border-top:1px solid #D3D2CB} .ds-row{display:grid;grid-template-columns:4.25rem minmax(0,1fr) auto auto;align-items:center;gap:0 0.75rem;min-height:3.25rem;padding:0.3rem 0.25rem 0.3rem 0.5rem;border-bottom:1px solid #D3D2CB} .ds-row-current{background:#F2C230;border-bottom-color:#111318} .ds-clock{font-stretch:82%;font-weight:750;font-size:0.875rem;font-variant-numeric:tabular-nums;white-space:nowrap} .ds-main{display:grid;min-width:0} .ds-main b{font-weight:600} .ds-main small{color:#565B6B;font-size:0.8125rem} .ds-dur{color:#565B6B;font-size:0.875rem;font-variant-numeric:tabular-nums} .ds-now{padding-right:0.5rem;font-stretch:82%;font-weight:800;font-size:0.6875rem;letter-spacing:0.1em;text-transform:uppercase}"
+    },
+    {
+      "name": "Turntable",
+      "kind": "custom",
+      "refersTo": "transport-play",
+      "description": "Signature deck: square night plinth, grooved record spinning 1.8s per turn, sleeve-colour label, tonearm, lamp.",
+      "html": "<div class=\"ds-plinth\"><div class=\"ds-vinyl\"><span class=\"ds-label\">In the Flesh</span><span class=\"ds-spindle\"></span></div><span class=\"ds-plamp\"></span><span class=\"ds-speed\">33⅓</span></div>",
+      "css": "@keyframes ds-spin{to{transform:rotate(360deg)}} .ds-plinth{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;position:relative;width:18rem;aspect-ratio:1;background:#1D2A5E;border:1px solid #34417A} .ds-vinyl{position:absolute;left:6%;top:10%;width:80%;aspect-ratio:1;display:grid;place-items:center;border-radius:50%;background:repeating-radial-gradient(circle at 50% 50%,#0D0F16 0 1.5px,#191C27 1.5px 3px);box-shadow:0 0 0 1px #34417A;animation:ds-spin 1.8s linear infinite} .ds-label{display:grid;place-items:center;width:34%;aspect-ratio:1;border-radius:50%;background:#C42420;color:#F2F1EC;font-stretch:68%;font-weight:800;font-size:0.7rem;line-height:0.95;text-transform:uppercase;text-align:center} .ds-spindle{position:absolute;left:50%;top:50%;width:9%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:#F2F1EC;box-shadow:0 0 0 1.5px #16204A} .ds-plamp{position:absolute;left:4%;bottom:4%;width:0.6rem;height:0.6rem;background:#E5322D} .ds-speed{position:absolute;right:4%;bottom:3.2%;color:#A9B1D6;font-stretch:82%;font-weight:700;font-size:0.75rem;letter-spacing:0.1em} @media (prefers-reduced-motion:reduce){.ds-vinyl{animation:none}}"
+    },
+    {
+      "name": "Alert",
+      "kind": "card",
+      "refersTo": "alert",
+      "description": "Error on sheet: 1.5px red-ink border and red-ink icon, never a red fill.",
+      "html": "<div class=\"ds-alert\" role=\"alert\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"square\" stroke-linejoin=\"miter\"><path d=\"M12 3L2.5 20h19z\"/><path d=\"M12 9.5v5M12 17.2v.01\"/></svg><p><strong>Can't play this Track</strong><br>The file may be missing or in a format this browser can't decode.</p></div>",
+      "css": ".ds-alert{font-family:Archivo,'Arial Narrow',system-ui,sans-serif;display:flex;gap:0.65rem;align-items:start;max-width:40rem;padding:0.8rem 1rem;background:#FBFAF6;border:1.5px solid #C42420;color:#111318;line-height:1.45} .ds-alert svg{flex:none;width:1.25rem;height:1.25rem;margin-top:0.1rem;color:#C42420} .ds-alert p{margin:0} .ds-alert strong{font-weight:750}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Tonight's Programme",
+    "overview": "Spinbox is set like a radio listings magazine for one household's evening. The record turns on a night-blue deck. The pages are newsprint paper, divided by ink rules. The queue is a timetable that shows when each Track will air. Every surface is either **night** (the rail, the deck, the mini-dock, auth) or **paper** (the pages and the listing). The two meet at a hard edge, with no gradient between them.\n\nType does the work that imagery and chrome do in a streaming app. Titles are condensed Archivo at weight 800 in uppercase, set tight like a magazine masthead. Body copy stays at normal width so it reads easily. Times and durations use tabular figures, so the listing reads like a printed schedule. Colour is rationed. Red means only that something is live. Yellow means only \"this one, now\". Every other colour is quarantined to the artwork plates.\n\nThe world is flat and square. There are no rounded cards, glows or decorative gradients. Depth comes from the night/paper split, 3px and 2px ink rules, 1.5px ink borders and hairline row dividers. The only circles are things that are physically round: the record, its label, the spindle, the transport play button and the plate play button.",
+    "keyCharacteristics": [
+      "Night-blue chrome (rail, deck, mini-dock, tabs, auth) against warm paper pages.",
+      "Condensed uppercase Archivo 800 for titles; normal-width Archivo for reading.",
+      "Square corners everywhere except physically round objects.",
+      "Ink rules as structure: 3px under page heads and above listings, 2px above section titles, hairlines between rows.",
+      "Red only for live state; yellow only for current and selection.",
+      "Tabular-figure clocks and durations: the queue is a timetable.",
+      "The spinning record with tonearm is the centrepiece of Now playing."
+    ],
+    "rules": [
+      {
+        "name": "The On-Air Rule",
+        "body": "Red marks live state and nothing else. Use it for the on-air tag, the lamps, the wordmark dot and the record label. Errors use a 1.5px red-ink border and a red-ink icon on sheet or paper, never a red fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Highlighter Rule",
+        "body": "Yellow means \"this one, now\": the current listing row, the current rail item, the current mobile tab, text selection, and hover on the item about to be chosen. It never decorates.",
+        "section": "colors"
+      },
+      {
+        "name": "The Plate Quarantine Rule",
+        "body": "Colour outside red and yellow lives only inside artwork plates. A generated sleeve may use any of five colourways: night, red ink, yellow, ink or paper-deep. The surrounding chrome never borrows a plate's colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Masthead Rule",
+        "body": "Titles are condensed (68% width), weight 800 and uppercase, with line-height ≤ 1. Body copy is never condensed and never uppercase.",
+        "section": "typography"
+      },
+      {
+        "name": "The Timetable Rule",
+        "body": "Every number that a reader scans down a column uses tabular figures at semi-condensed width.",
+        "section": "typography"
+      },
+      {
+        "name": "The Small Caps Carry State Rule",
+        "body": "Small uppercase caps label a state (on air, paused, can't play, missing, admin, disabled) or a time. They never sit above a heading as an introduction.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Stock Rule",
+        "body": "Surfaces are flat at rest. Only floating overlays cast a soft shadow, and it is always ink-tinted and offset downward or outward, never a glow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Layer Order Rule",
+        "body": "Remix `css()` emits each class into its own sublayer, `@layer rmx.<hash>`, and orders the sublayers by first appearance in the document. `globalStyles` declares `@layer reset, rmx;` first and keeps every element reset inside `@layer reset`, because unlayered global CSS would beat every `css()` style. In `mix={[base, modifier]}`, a modifier wins only if its layer was created after the base's. A shared modifier can therefore lose, so it sets custom properties that the base reads. For example, `btnSmall` sets `--btn-h`, `--btn-px` and `--btn-fs`, and `buttonBase` consumes them. Surface tones work the same way: `paperTone` and `nightTone` set `--tx-fg`, `--tx-bg`, `--tx-mute` and `--tx-rest`. Nested selectors on a parent class (for example `'& h2'`) can lose to a later layer, so style the child directly.",
+        "section": "components"
+      },
+      {
+        "name": "The Inline-Flex Icon Rule",
+        "body": "Icon buttons centre their glyph with `display: inline-flex`, never grid. A hidden label inside a grid creates a phantom row.",
+        "section": "components"
+      },
+      {
+        "name": "The String Clamp Rule",
+        "body": "Unitless properties passed to `css()` must be strings. Write `WebkitLineClamp: '2'`, because the number `2` compiles to `2px`.",
+        "section": "components"
+      },
+      {
+        "name": "The Square-Stroke Icon Rule",
+        "body": "Icons are inline 24×24 SVGs with a 2px `currentColor` stroke, square caps and miter joins. Transport glyphs use solid fills. Size them with CSS (1–1.5rem), never with an icon font.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** set every title in condensed (68% width) Archivo 800 uppercase with line-height ≤ 1, and keep reading text at normal width.",
+      "**Do** mark structure with ink rules: 3px under page heads and above listings, 2px above section titles, and 1px rule between rows.",
+      "**Do** keep red for live state (the on-air tag, lamps, the record label) and draw errors as a 1.5px red-ink border with a red-ink icon on sheet or paper.",
+      "**Do** keep yellow for the current row, the current rail item, the current tab, selection, and hover on the item about to be chosen.",
+      "**Do** use tabular figures at 82% width for clocks, durations and counts.",
+      "**Do** keep corners square. Reserve 50% radius for objects that are physically round.",
+      "**Do** make a shared modifier set custom properties that the base reads, instead of overriding properties directly.",
+      "**Do** keep every control at least 2.75rem tall and collapse all motion under `prefers-reduced-motion`."
+    ],
+    "donts": [
+      "**Don't** use red fills for errors or decoration, or yellow for anything other than \"current\" or \"selected\".",
+      "**Don't** round cards, buttons, inputs or plates.",
+      "**Don't** add glows, decorative gradients or resting shadows. The only gradients render the record.",
+      "**Don't** put a small uppercase eyebrow or kicker above a heading. Small caps carry state or time only.",
+      "**Don't** let chrome borrow a plate's colourway. Colour stays inside the plate.",
+      "**Don't** write global element CSS outside `@layer reset`, or pass numbers for unitless `css()` properties.",
+      "**Don't** centre icon-button glyphs with grid."
+    ]
+  }
+}

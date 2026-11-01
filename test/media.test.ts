@@ -67,5 +67,6 @@ function fakeTrack(input: { path: string; mime: string }): Track {
     mime: input.mime,
     mtimeMs: 0,
     size: 0,
+    hasArtwork: false,
   }
 }

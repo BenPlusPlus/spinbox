@@ -293,21 +293,26 @@ export function getListenResume(database: AppDatabase, member: HouseholdMember):
   return { lastActiveTrack, lastActivePositionMs, positions }
 }
 
-export function listRecentlyPlayed(database: AppDatabase, member: HouseholdMember): Track[] {
+export type RecentlyPlayedTrack = Track & { playedAt: string }
+
+export function listRecentlyPlayed(
+  database: AppDatabase,
+  member: HouseholdMember,
+): RecentlyPlayedTrack[] {
   let rows = database.sqlite
     .prepare(
-      `SELECT track_id
+      `SELECT track_id, played_at
        FROM recently_played
        WHERE member_id = ?
        ORDER BY seq DESC`,
     )
-    .all(member.id) as { track_id: string }[]
+    .all(member.id) as { track_id: string; played_at: string }[]
 
-  let tracks: Track[] = []
+  let tracks: RecentlyPlayedTrack[] = []
   for (let row of rows) {
     let track = findTrackById(database, row.track_id)
     if (track) {
-      tracks.push(track)
+      tracks.push({ ...track, playedAt: row.played_at })
     }
   }
   return tracks

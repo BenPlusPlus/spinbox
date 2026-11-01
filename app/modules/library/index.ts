@@ -247,6 +247,16 @@ export type Track = {
   mime: string
   mtimeMs: number
   size: number
+  hasArtwork: boolean
+}
+
+export type ArtworkKind = 'folder' | 'embedded'
+
+export type TrackArtwork = {
+  track: Track
+  kind: ArtworkKind
+  /** Library-relative folder image path when kind is 'folder'. */
+  path: string | null
 }
 
 export type ScanLastResult = {
@@ -293,7 +303,13 @@ type TrackRow = {
   mime: string
   mtime_ms: number
   size: number
+  artwork_kind: ArtworkKind | null
+  artwork_path: string | null
+  artwork_checked: number
 }
+
+const TRACK_COLUMNS = `id, path, title, artist, album, album_artist, disc_number, track_number,
+              duration_ms, mime, mtime_ms, size, artwork_kind, artwork_path, artwork_checked`
 
 type ScanRunRow = {
   id: string
@@ -400,8 +416,7 @@ export async function isLibraryMountHealthy(libraryRoot: string): Promise<boolea
 export function listTracks(database: AppDatabase): Track[] {
   let rows = database.sqlite
     .prepare(
-      `SELECT id, path, title, artist, album, album_artist, disc_number, track_number,
-              duration_ms, mime, mtime_ms, size
+      `SELECT ${TRACK_COLUMNS}
        FROM tracks
        ORDER BY path ASC`,
     )
@@ -414,15 +429,51 @@ export function findTrackByPath(database: AppDatabase, relativePath: string): Tr
 }
 
 export function findTrackById(database: AppDatabase, id: string): Track | null {
-  let row = database.sqlite
-    .prepare(
-      `SELECT id, path, title, artist, album, album_artist, disc_number, track_number,
-              duration_ms, mime, mtime_ms, size
-       FROM tracks
-       WHERE id = ?`,
-    )
-    .get(id) as TrackRow | undefined
+  let row = loadTrackRowById(database, id)
   return row ? toTrack(row) : null
+}
+
+/** The recorded artwork source for a Track, or null when it has none. */
+export function findTrackArtwork(database: AppDatabase, trackId: string): TrackArtwork | null {
+  let row = loadTrackRowById(database, trackId)
+  if (row?.artwork_kind == null) {
+    return null
+  }
+  return { track: toTrack(row), kind: row.artwork_kind, path: row.artwork_path }
+}
+
+/**
+ * Resolve a library-relative path to an absolute path jailed under the Library root.
+ * Returns null for empty, `..`-escaping, or NUL-containing paths.
+ */
+export function resolveLibraryPath(libraryRoot: string, relativePath: string): string | null {
+  let relative = normalizeLibraryPath(relativePath)
+  if (!relative || relative.includes('\0')) {
+    return null
+  }
+
+  let segments = relative.split('/').filter((segment) => segment.length > 0 && segment !== '.')
+  if (segments.length === 0 || segments.some((segment) => segment === '..')) {
+    return null
+  }
+
+  let root = path.resolve(libraryRoot)
+  let absolutePath = path.resolve(root, ...segments)
+  return isPathInside(absolutePath, root) ? absolutePath : null
+}
+
+export function isPathInside(inner: string, outer: string): boolean {
+  let resolvedInner = path.resolve(inner)
+  let resolvedOuter = path.resolve(outer)
+  if (process.platform === 'win32') {
+    resolvedInner = resolvedInner.toLowerCase()
+    resolvedOuter = resolvedOuter.toLowerCase()
+  }
+  let relative = path.relative(resolvedOuter, resolvedInner)
+  if (relative === '' || path.isAbsolute(relative)) {
+    return false
+  }
+  return relative.split(path.sep)[0] !== '..'
 }
 
 export type AlbumGroup = {
@@ -430,6 +481,8 @@ export type AlbumGroup = {
   album: string
   albumArtist: string
   tracks: Track[]
+  /** First Track in display order that has artwork. */
+  artworkTrackId: string | null
 }
 
 export type ArtistGroup = {
@@ -437,6 +490,8 @@ export type ArtistGroup = {
   artist: string
   albums: AlbumGroup[]
   tracks: Track[]
+  /** First Album with artwork, else first matching Track with artwork. */
+  artworkTrackId: string | null
 }
 
 export function albumGroupingKey(albumArtist: string, album: string): string {
@@ -464,7 +519,13 @@ export function findAlbumByKey(database: AppDatabase, key: string): AlbumGroup |
     return null
   }
   tracks.sort(compareAlbumTracks)
-  return { key, album: album!, albumArtist: albumArtist!, tracks }
+  return {
+    key,
+    album: album!,
+    albumArtist: albumArtist!,
+    tracks,
+    artworkTrackId: firstArtworkTrackId(tracks),
+  }
 }
 
 export function listArtists(database: AppDatabase): ArtistGroup[] {
@@ -565,6 +626,7 @@ function groupAlbums(tracks: Track[]): AlbumGroup[] {
         album: track.album,
         albumArtist: track.albumArtist,
         tracks: [],
+        artworkTrackId: null,
       }
       groups.set(key, group)
     }
@@ -572,6 +634,7 @@ function groupAlbums(tracks: Track[]): AlbumGroup[] {
   }
   for (let group of groups.values()) {
     group.tracks.sort(compareAlbumTracks)
+    group.artworkTrackId = firstArtworkTrackId(group.tracks)
   }
   return [...groups.values()].sort((left, right) => {
     let artist = left.albumArtist.localeCompare(right.albumArtist)
@@ -602,7 +665,14 @@ function buildArtistGroup(tracks: Track[], artist: string): ArtistGroup {
     artist,
     albums,
     tracks: matching,
+    artworkTrackId:
+      albums.find((album) => album.artworkTrackId != null)?.artworkTrackId ??
+      firstArtworkTrackId(matching),
   }
+}
+
+function firstArtworkTrackId(tracks: readonly Track[]): string | null {
+  return tracks.find((track) => track.hasArtwork)?.id ?? null
 }
 
 function compareAlbumTracks(left: Track, right: Track) {
@@ -633,6 +703,7 @@ async function runScan(
 
   try {
     let walker = adapter ?? createFilesystemAdapter(rules)
+    let folderImages = new Map<string, Promise<string | null>>()
     for await (let file of walker.walk(config.libraryRoot)) {
       let relativePath = normalizeLibraryPath(file.relativePath)
       if (
@@ -644,13 +715,17 @@ async function runScan(
 
       seen += 1
       seenPaths.add(relativePath)
-      let existing = loadTrackByPath(database, relativePath)
-      if (existing && existing.mtimeMs === file.mtimeMs && existing.size === file.size) {
+      let existing = loadTrackRowByPath(database, relativePath)
+      let folderImage = await findFolderImage(config.libraryRoot, relativePath, folderImages)
+
+      if (existing && existing.mtime_ms === file.mtimeMs && existing.size === file.size) {
+        await refreshArtwork(database, existing, folderImage, file.absolutePath)
         continue
       }
 
-      let tags = file.absolutePath ? await readEmbeddedTags(file.absolutePath) : null
-      let metadata = resolveTrackMetadata(relativePath, tags)
+      let parsed = file.absolutePath ? await readEmbeddedTags(file.absolutePath) : null
+      let metadata = resolveTrackMetadata(relativePath, parsed?.tags ?? null)
+      let artwork = artworkFor(folderImage, parsed?.hasPicture ?? false)
       let now = new Date().toISOString()
       let mime = mimeForPath(relativePath)
 
@@ -659,7 +734,8 @@ async function runScan(
           .prepare(
             `UPDATE tracks
              SET title = ?, artist = ?, album = ?, album_artist = ?, disc_number = ?,
-                 track_number = ?, duration_ms = ?, mime = ?, mtime_ms = ?, size = ?, updated_at = ?
+                 track_number = ?, duration_ms = ?, mime = ?, mtime_ms = ?, size = ?, updated_at = ?,
+                 artwork_kind = ?, artwork_path = ?, artwork_checked = 1
              WHERE path = ?`,
           )
           .run(
@@ -674,6 +750,8 @@ async function runScan(
             file.mtimeMs,
             file.size,
             now,
+            artwork.kind,
+            artwork.path,
             relativePath,
           )
       } else {
@@ -681,8 +759,9 @@ async function runScan(
           .prepare(
             `INSERT INTO tracks (
                id, path, title, artist, album, album_artist, disc_number, track_number,
-               duration_ms, mime, mtime_ms, size, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               duration_ms, mime, mtime_ms, size, updated_at,
+               artwork_kind, artwork_path, artwork_checked
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           )
           .run(
             crypto.randomUUID(),
@@ -698,6 +777,8 @@ async function runScan(
             file.mtimeMs,
             file.size,
             now,
+            artwork.kind,
+            artwork.path,
           )
       }
       upserted += 1
@@ -856,25 +937,139 @@ async function* walkDirectory(
   }
 }
 
-async function readEmbeddedTags(absolutePath: string): Promise<EmbeddedTags | null> {
+async function readEmbeddedTags(
+  absolutePath: string,
+): Promise<{ tags: EmbeddedTags; hasPicture: boolean } | null> {
   try {
-    let parsed = await parseFile(absolutePath, { skipCovers: true, duration: true })
+    let parsed = await parseFile(absolutePath, { duration: true })
     let durationMs =
       typeof parsed.format.duration === 'number'
         ? Math.round(parsed.format.duration * 1000)
         : null
     return {
-      title: parsed.common.title ?? null,
-      artist: parsed.common.artist ?? parsed.common.artists?.[0] ?? null,
-      album: parsed.common.album ?? null,
-      albumArtist: parsed.common.albumartist ?? null,
-      trackNumber: parsed.common.track.no ?? null,
-      discNumber: parsed.common.disk.no ?? null,
-      durationMs,
+      tags: {
+        title: parsed.common.title ?? null,
+        artist: parsed.common.artist ?? parsed.common.artists?.[0] ?? null,
+        album: parsed.common.album ?? null,
+        albumArtist: parsed.common.albumartist ?? null,
+        trackNumber: parsed.common.track.no ?? null,
+        discNumber: parsed.common.disk.no ?? null,
+        durationMs,
+      },
+      hasPicture: (parsed.common.picture?.length ?? 0) > 0,
     }
   } catch {
     return null
   }
+}
+
+async function hasEmbeddedPicture(absolutePath: string): Promise<boolean> {
+  try {
+    let parsed = await parseFile(absolutePath, { duration: false })
+    return (parsed.common.picture?.length ?? 0) > 0
+  } catch {
+    return false
+  }
+}
+
+const FOLDER_IMAGE_NAMES = ['cover', 'folder', 'front', 'album']
+const FOLDER_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
+
+type ArtworkSource = { kind: ArtworkKind | null; path: string | null }
+
+function artworkFor(folderImage: string | null, hasPicture: boolean): ArtworkSource {
+  if (folderImage) {
+    return { kind: 'folder', path: folderImage }
+  }
+  return hasPicture ? { kind: 'embedded', path: null } : { kind: null, path: null }
+}
+
+/**
+ * Library-relative path of the preferred folder image beside a Track, or null.
+ * Directory listings are cached per Scan run; any fs error fails soft to null.
+ */
+function findFolderImage(
+  libraryRoot: string,
+  trackPath: string,
+  cache: Map<string, Promise<string | null>>,
+): Promise<string | null> {
+  let directory = trackPath.split('/').slice(0, -1).join('/')
+  let cached = cache.get(directory)
+  if (!cached) {
+    cached = lookupFolderImage(libraryRoot, directory)
+    cache.set(directory, cached)
+  }
+  return cached
+}
+
+async function lookupFolderImage(libraryRoot: string, directory: string): Promise<string | null> {
+  try {
+    let root = path.resolve(libraryRoot)
+    let absoluteDirectory = directory ? resolveLibraryPath(root, directory) : root
+    if (!absoluteDirectory) {
+      return null
+    }
+
+    let byLowerName = new Map<string, string>()
+    for (let entry of await fs.readdir(absoluteDirectory, { withFileTypes: true })) {
+      if (entry.isFile()) {
+        byLowerName.set(entry.name.toLowerCase(), entry.name)
+      }
+    }
+
+    for (let name of FOLDER_IMAGE_NAMES) {
+      for (let extension of FOLDER_IMAGE_EXTENSIONS) {
+        let actual = byLowerName.get(`${name}.${extension}`)
+        if (!actual) {
+          continue
+        }
+        let relativePath = directory ? `${directory}/${actual}` : actual
+        let absolutePath = resolveLibraryPath(root, relativePath)
+        if (!absolutePath) {
+          continue
+        }
+        let stat = await fs.lstat(absolutePath)
+        if (!stat.isSymbolicLink() && stat.isFile() && stat.size > 0) {
+          return normalizeLibraryPath(relativePath)
+        }
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Keep artwork columns current for a Track whose audio file did not change. */
+async function refreshArtwork(
+  database: AppDatabase,
+  row: TrackRow,
+  folderImage: string | null,
+  absolutePath: string | undefined,
+) {
+  let next: ArtworkSource
+  if (folderImage) {
+    next = { kind: 'folder', path: folderImage }
+  } else if (row.artwork_checked && row.artwork_kind !== 'folder') {
+    next = { kind: row.artwork_kind, path: null }
+  } else {
+    let embedded = absolutePath ? await hasEmbeddedPicture(absolutePath) : false
+    next = artworkFor(null, embedded)
+  }
+
+  if (
+    row.artwork_checked &&
+    row.artwork_kind === next.kind &&
+    row.artwork_path === next.path
+  ) {
+    return
+  }
+
+  database.sqlite
+    .prepare(
+      `UPDATE tracks SET artwork_kind = ?, artwork_path = ?, artwork_checked = 1 WHERE id = ?`,
+    )
+    .run(next.kind, next.path, row.id)
 }
 
 async function requireActiveAdmin(database: AppDatabase, actor: HouseholdMember) {
@@ -885,15 +1080,28 @@ async function requireActiveAdmin(database: AppDatabase, actor: HouseholdMember)
 }
 
 function loadTrackByPath(database: AppDatabase, relativePath: string): Track | null {
-  let row = database.sqlite
+  let row = loadTrackRowByPath(database, relativePath)
+  return row ? toTrack(row) : null
+}
+
+function loadTrackRowByPath(database: AppDatabase, relativePath: string): TrackRow | undefined {
+  return database.sqlite
     .prepare(
-      `SELECT id, path, title, artist, album, album_artist, disc_number, track_number,
-              duration_ms, mime, mtime_ms, size
+      `SELECT ${TRACK_COLUMNS}
        FROM tracks
        WHERE path = ?`,
     )
     .get(relativePath) as TrackRow | undefined
-  return row ? toTrack(row) : null
+}
+
+function loadTrackRowById(database: AppDatabase, id: string): TrackRow | undefined {
+  return database.sqlite
+    .prepare(
+      `SELECT ${TRACK_COLUMNS}
+       FROM tracks
+       WHERE id = ?`,
+    )
+    .get(id) as TrackRow | undefined
 }
 
 function toTrack(row: TrackRow): Track {
@@ -910,6 +1118,7 @@ function toTrack(row: TrackRow): Track {
     mime: row.mime,
     mtimeMs: row.mtime_ms,
     size: row.size,
+    hasArtwork: row.artwork_kind != null,
   }
 }
 

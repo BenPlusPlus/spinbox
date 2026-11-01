@@ -4,6 +4,22 @@ import { css } from 'remix/component'
 import type { PlaylistSummary } from '../modules/playlists/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
+import { icon } from './icons.tsx'
+import { alertMessage, pageHead, plural } from './page-kit.tsx'
+import {
+  btnPrimary,
+  color,
+  emptyNote,
+  field,
+  input,
+  listing,
+  listingRow,
+  numCell,
+  rowTitle,
+  sectionTitle,
+  titleLink,
+  wide,
+} from './theme.ts'
 
 export function PlaylistsPage(
   handle: Handle<{
@@ -18,120 +34,97 @@ export function PlaylistsPage(
     return (
       <AppChrome title="Playlists · Spinbox" current="playlists" chrome={chrome}>
         <main>
-          <h1 mix={heading}>Playlists</h1>
-          <p mix={copy}>Your Playlists. A Playlist is not the Play queue.</p>
-          {error ? <p mix={errorBox}>{error}</p> : null}
+          {pageHead({
+            title: 'Playlists',
+            lede: 'Your saved running orders. A Playlist is kept for later; the Play queue is what is on air now.',
+          })}
+          {alertMessage(error)}
 
-          <form method="POST" action={routes.playlists.action.href()} mix={createForm}>
-            <label mix={field}>
-              New Playlist
-              <input mix={input} type="text" name="name" required maxLength={80} />
-            </label>
-            <button mix={submit} type="submit">
-              Create Playlist
-            </button>
-          </form>
+          <div mix={layout}>
+            <section>
+              <h2 mix={sectionTitle}>
+                Your playlists
+                <span mix={numCell}>{playlists.length}</span>
+              </h2>
+              {playlists.length === 0 ? (
+                <p mix={emptyNote}>You have no Playlists yet. Create one to collect Tracks.</p>
+              ) : (
+                <ul mix={listing}>
+                  {playlists.map((playlist) => (
+                    <li mix={[listingRow, row]} key={playlist.id}>
+                      <span mix={badge}>{icon('playlist')}</span>
+                      <a mix={[titleLink, rowTitle, rowLink]} href={routes.playlist.index.href({ id: playlist.id })}>
+                        {playlist.name}
+                      </a>
+                      <span mix={numCell}>{plural(playlist.trackCount, 'Track')}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-          {playlists.length === 0 ? (
-            <p mix={copy}>You have no Playlists yet. Create one to collect Tracks.</p>
-          ) : (
-            <ul mix={list}>
-              {playlists.map((playlist) => (
-                <li mix={item} key={playlist.id}>
-                  <a mix={link} href={routes.playlist.index.href({ id: playlist.id })}>
-                    {playlist.name}
-                  </a>
-                  <span mix={meta}>
-                    {playlist.trackCount} {playlist.trackCount === 1 ? 'Track' : 'Tracks'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+            <section>
+              <h2 mix={sectionTitle}>New Playlist</h2>
+              <form method="POST" action={routes.playlists.action.href()} mix={createForm}>
+                <label mix={field}>
+                  Name
+                  <input mix={input} type="text" name="name" required maxLength={80} placeholder="Sunday morning" />
+                </label>
+                <button mix={btnPrimary} type="submit">
+                  {icon('plus')}
+                  Create Playlist
+                </button>
+              </form>
+            </section>
+          </div>
         </main>
       </AppChrome>
     )
   }
 }
 
-let heading = css({
-  margin: '0 0 0.5rem',
-  fontSize: '2rem',
-  fontFamily: 'Fraunces, Georgia, serif',
-})
-
-let copy = css({
-  margin: '0 0 1.25rem',
-  maxWidth: '36rem',
-  lineHeight: 1.5,
-  color: '#4a4038',
-})
-
-let errorBox = css({
-  margin: '0 0 1rem',
-  maxWidth: '36rem',
-  color: '#8a2a2a',
+let layout = css({
+  display: 'grid',
+  gap: '3rem',
+  [wide]: {
+    gridTemplateColumns: 'minmax(0, 1fr) 20rem',
+    alignItems: 'start',
+  },
 })
 
 let createForm = css({
   display: 'grid',
-  gap: '0.65rem',
-  maxWidth: '22rem',
-  margin: '0 0 1.75rem',
-})
-
-let field = css({
-  display: 'grid',
-  gap: '0.35rem',
-  fontFamily: '"Source Sans 3", sans-serif',
-  fontSize: '0.95rem',
-})
-
-let input = css({
-  padding: '0.65rem 0.7rem',
-  border: '1px solid #c4b8a8',
-  borderRadius: '2px',
-  background: '#fffdf8',
-  font: 'inherit',
-})
-
-let submit = css({
-  padding: '0.7rem 0.9rem',
-  border: 0,
-  borderRadius: '2px',
-  background: '#1c120c',
-  color: '#f3ead8',
-  fontFamily: '"Source Sans 3", sans-serif',
-  fontWeight: 600,
-  cursor: 'pointer',
-})
-
-let list = css({
-  margin: 0,
-  padding: 0,
-  listStyle: 'none',
-  maxWidth: '36rem',
-})
-
-let item = css({
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'baseline',
-  gap: '0.5rem 0.85rem',
-  padding: '0.65rem 0',
-  borderBottom: '1px solid #e0d6c8',
-})
-
-let link = css({
-  color: '#1c120c',
-  fontWeight: 600,
-  textDecoration: 'none',
-  '&:hover': {
-    textDecoration: 'underline',
+  gap: '0.85rem',
+  justifyItems: 'start',
+  '& label': {
+    width: '100%',
   },
 })
 
-let meta = css({
-  color: '#6b5646',
-  fontSize: '0.9rem',
+let row = css({
+  gridTemplateColumns: '2.75rem minmax(0, 1fr) auto',
+  gap: '0 0.9rem',
+  paddingRight: '0.75rem',
+  position: 'relative',
+})
+
+let rowLink = css({
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    inset: 0,
+  },
+})
+
+let badge = css({
+  display: 'grid',
+  placeItems: 'center',
+  width: '2.75rem',
+  height: '2.75rem',
+  background: color.night,
+  color: color.paper,
+  '& svg': {
+    width: '1.2rem',
+    height: '1.2rem',
+  },
 })

@@ -126,8 +126,8 @@ describe('first Admin setup and sign-in', () => {
       email: 'ada@example.com',
       password: 'wrong-password',
     })
-    assert.equal(badLogin.status, 302)
-    assert.equal(badLogin.headers.get('Location'), originUrl(config, routes.login.index.href()))
+    assert.equal(badLogin.status, 200)
+    assert.match(await badLogin.text(), /Email or password is incorrect/)
     let failedCookie = sessionCookie(badLogin)
     let stillAnonymous = await app.fetch(
       new Request('http://evil.example' + routes.home.href(), {
@@ -648,8 +648,8 @@ describe('member lifecycle, roles, and last-Admin recovery', () => {
       email: 'ben@example.com',
       password: 'household-pass',
     })
-    assert.equal(blocked.status, 302)
-    assert.equal(blocked.headers.get('Location'), originUrl(config, routes.login.index.href()))
+    assert.equal(blocked.status, 200)
+    assert.match(await blocked.text(), /Email or password is incorrect/)
     let blockedCookie = sessionCookie(blocked)
     let blockedHome = await app.fetch(
       new Request('http://evil.example' + routes.home.href(), {

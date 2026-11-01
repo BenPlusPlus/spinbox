@@ -5,6 +5,25 @@ import type { HouseholdMember } from '../modules/auth/index.ts'
 import type { ScanStatus } from '../modules/library/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
+import { icon } from './icons.tsx'
+import { alertMessage, noticeMessage, pageHead } from './page-kit.tsx'
+import {
+  btnDanger,
+  btnPrimary,
+  btnSecondary,
+  btnSmall,
+  caps,
+  color,
+  field,
+  formStack,
+  input,
+  listing,
+  meta,
+  pageLede,
+  section,
+  sectionTitle,
+  wide,
+} from './theme.ts'
 
 export function SettingsPage(
   handle: Handle<{
@@ -18,159 +37,188 @@ export function SettingsPage(
 ) {
   return () => {
     let { member, members, scanStatus, error, notice, chrome } = handle.props
+    let isAdmin = member.role === 'admin' && !member.mustChangePassword
 
     return (
       <AppChrome title="Settings · Spinbox" current="settings" chrome={chrome}>
         <main>
-          <h1 mix={heading}>Settings</h1>
-          <p mix={copy}>
-            {member.mustChangePassword
+          {pageHead({
+            title: 'Settings',
+            lede: member.mustChangePassword
               ? 'An Admin set a temporary password. Change it before you continue.'
-              : 'Update your display name or password. Sign out when you are done.'}
-          </p>
-          {error ? <p mix={errorBox}>{error}</p> : null}
-          {notice ? <p mix={noticeBox}>{notice}</p> : null}
+              : 'Update your display name or password. Sign out when you are done.',
+          })}
+          {alertMessage(error)}
+          {noticeMessage(notice)}
 
-          {member.mustChangePassword ? null : (
-            <>
-              <h2 mix={subheading}>Display name</h2>
-              <form method="POST" action={routes.settings.action.href()} mix={stack}>
-                <input type="hidden" name="intent" value="displayName" />
+          <div mix={accountGrid}>
+            {member.mustChangePassword ? null : (
+              <section>
+                <h2 mix={sectionTitle}>Profile</h2>
+                <form method="POST" action={routes.settings.action.href()} mix={formStack}>
+                  <input type="hidden" name="intent" value="displayName" />
+                  <label mix={field}>
+                    Display name
+                    <input
+                      mix={input}
+                      type="text"
+                      name="displayName"
+                      autoComplete="nickname"
+                      value={member.displayName ?? ''}
+                    />
+                  </label>
+                  <div>
+                    <button mix={btnPrimary} type="submit">
+                      Save display name
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
+
+            <section>
+              <h2 mix={sectionTitle}>Password</h2>
+              <form method="POST" action={routes.settings.action.href()} mix={formStack}>
+                <input type="hidden" name="intent" value="password" />
                 <label mix={field}>
-                  Display name
+                  Current password
                   <input
                     mix={input}
-                    type="text"
-                    name="displayName"
-                    autoComplete="nickname"
-                    value={member.displayName ?? ''}
+                    type="password"
+                    name="currentPassword"
+                    autoComplete="current-password"
+                    required
                   />
                 </label>
-                <button mix={submit} type="submit">
-                  Save display name
-                </button>
+                <label mix={field}>
+                  New password
+                  <input
+                    mix={input}
+                    type="password"
+                    name="newPassword"
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                  />
+                  <span mix={hint}>At least 8 characters.</span>
+                </label>
+                <div>
+                  <button mix={btnPrimary} type="submit">
+                    Change password
+                  </button>
+                </div>
               </form>
-            </>
-          )}
+            </section>
+          </div>
 
-          <h2 mix={subheading}>Password</h2>
-          <form method="POST" action={routes.settings.action.href()} mix={stack}>
-            <input type="hidden" name="intent" value="password" />
-            <label mix={field}>
-              Current password
-              <input
-                mix={input}
-                type="password"
-                name="currentPassword"
-                autoComplete="current-password"
-                required
-              />
-            </label>
-            <label mix={field}>
-              New password
-              <input
-                mix={input}
-                type="password"
-                name="newPassword"
-                autoComplete="new-password"
-                required
-                minLength={8}
-              />
-            </label>
-            <button mix={submit} type="submit">
-              Change password
-            </button>
-          </form>
-
-          {member.role === 'admin' && scanStatus && !member.mustChangePassword ? (
-            <>
-              <h2 mix={subheading}>Library Scan run</h2>
-              <p mix={copy}>{scanStatusCopy(scanStatus)}</p>
-              <form method="POST" action={routes.scanNow.href()}>
-                <button mix={submit} type="submit" disabled={scanStatus.state === 'running'}>
-                  Scan now
-                </button>
-              </form>
-            </>
+          {isAdmin && scanStatus ? (
+            <section mix={section}>
+              <h2 mix={sectionTitle}>Library Scan run</h2>
+              <div mix={scanPanel}>
+                <span mix={[scanLamp, scanStatus.state === 'running' ? scanLampOn : null]} aria-hidden="true"></span>
+                <p mix={scanCopy}>{scanStatusCopy(scanStatus)}</p>
+                <form method="POST" action={routes.scanNow.href()}>
+                  <button mix={btnSecondary} type="submit" disabled={scanStatus.state === 'running'}>
+                    {icon('record')}
+                    Scan now
+                  </button>
+                </form>
+              </div>
+            </section>
           ) : null}
 
-          {member.role === 'admin' && members && !member.mustChangePassword ? (
-            <>
-              <h2 mix={subheading}>Household members</h2>
-              <p mix={copy}>
-                Promote or demote roles. Disable to block sign-in and keep their data. Hard delete is
-                permanent. Invites live on a separate page.
+          {isAdmin && members ? (
+            <section mix={section}>
+              <h2 mix={sectionTitle}>
+                Household members
+                <a mix={invitesLink} href={routes.invites.index.href()}>
+                  {icon('plus')}
+                  Invites
+                </a>
+              </h2>
+              <p mix={[pageLede, membersLede]}>
+                Promote or demote roles. Disable to block sign-in and keep their data. Hard delete is permanent.
+                Invites live on a separate page.
               </p>
-              <p mix={copy}>
-                <a href={routes.invites.index.href()}>Invites</a>
-              </p>
-              <ul mix={list}>
+              <ul mix={listing}>
                 {members.map((row) => (
-                  <li mix={rowStyle}>
-                    <div>
-                      <strong>{row.displayName ?? row.email}</strong>
-                      {row.displayName ? ` · ${row.email}` : ''}
-                      {' · '}
-                      {row.role === 'admin' ? 'Admin' : 'Member'}
-                      {row.disabledAt ? ' · Disabled' : ''}
+                  <li mix={memberRow} key={row.id}>
+                    <div mix={memberWho}>
+                      <strong mix={memberName}>{row.displayName ?? row.email}</strong>
+                      {row.displayName ? <span mix={meta}>{row.email}</span> : null}
+                      <span mix={tagRow}>
+                        <span mix={[caps, tag, row.role === 'admin' ? tagAdmin : null]}>
+                          {row.role === 'admin' ? 'Admin' : 'Member'}
+                        </span>
+                        {row.disabledAt ? <span mix={[caps, tag, tagDisabled]}>Disabled</span> : null}
+                      </span>
                     </div>
-                    <div mix={actions}>
+                    <div mix={memberActions}>
                       {row.role === 'member' ? (
                         <form method="POST" action={routes.memberPromote.href({ id: row.id })}>
-                          <button mix={action} type="submit">
+                          <button mix={[btnSecondary, btnSmall]} type="submit">
                             Promote
                           </button>
                         </form>
                       ) : (
                         <form method="POST" action={routes.memberDemote.href({ id: row.id })}>
-                          <button mix={action} type="submit">
+                          <button mix={[btnSecondary, btnSmall]} type="submit">
                             Demote
                           </button>
                         </form>
                       )}
                       {row.disabledAt ? (
                         <form method="POST" action={routes.memberEnable.href({ id: row.id })}>
-                          <button mix={action} type="submit">
+                          <button mix={[btnSecondary, btnSmall]} type="submit">
                             Re-enable
                           </button>
                         </form>
                       ) : (
                         <form method="POST" action={routes.memberDisable.href({ id: row.id })}>
-                          <button mix={action} type="submit">
+                          <button mix={[btnSecondary, btnSmall]} type="submit">
                             Disable
                           </button>
                         </form>
                       )}
-                      <form method="POST" action={routes.memberTemporaryPassword.href({ id: row.id })}>
-                        <input
-                          mix={inlineInput}
-                          type="password"
-                          name="password"
-                          placeholder="Temporary password"
-                          required
-                          minLength={8}
-                        />
-                        <button mix={action} type="submit">
-                          Set temporary password
-                        </button>
-                      </form>
                       <form method="POST" action={routes.memberHardDelete.href({ id: row.id })}>
-                        <button mix={danger} type="submit">
+                        <button mix={[btnDanger, btnSmall]} type="submit">
                           Hard delete
                         </button>
                       </form>
                     </div>
+                    <form
+                      method="POST"
+                      action={routes.memberTemporaryPassword.href({ id: row.id })}
+                      mix={tempForm}
+                    >
+                      <label mix={[field, tempField]}>
+                        Temporary password
+                        <input
+                          mix={[input, tempInput]}
+                          type="password"
+                          name="password"
+                          autoComplete="new-password"
+                          required
+                          minLength={8}
+                        />
+                      </label>
+                      <button mix={[btnSecondary, btnSmall]} type="submit">
+                        Set temporary password
+                      </button>
+                    </form>
                   </li>
                 ))}
               </ul>
-            </>
+            </section>
           ) : null}
 
-          <form method="POST" action={routes.logout.href()}>
-            <button mix={signOut} type="submit">
-              Sign out
-            </button>
-          </form>
+          <section mix={[section, signOutSection]}>
+            <form method="POST" action={routes.logout.href()}>
+              <button mix={btnSecondary} type="submit">
+                Sign out
+              </button>
+            </form>
+          </section>
         </main>
       </AppChrome>
     )
@@ -191,130 +239,146 @@ function scanStatusCopy(status: ScanStatus): string {
   return `Last Scan run: failed${result.error ? ` · ${result.error}` : ''}`
 }
 
-let heading = css({
-  margin: '0 0 0.5rem',
-  fontSize: '2rem',
-  fontFamily: 'Fraunces, Georgia, serif',
-})
-
-let subheading = css({
-  margin: '2rem 0 0.75rem',
-  fontSize: '1.2rem',
-})
-
-let copy = css({
-  margin: '0 0 1.25rem',
-  maxWidth: '36rem',
-  lineHeight: 1.5,
-  color: '#4a4038',
-})
-
-let errorBox = css({
-  margin: '0 0 1rem',
-  padding: '0.65rem 0.75rem',
-  maxWidth: '36rem',
-  background: '#f3d6cc',
-  color: '#6b2414',
-  fontFamily: 'system-ui, sans-serif',
-})
-
-let noticeBox = css({
-  margin: '0 0 1rem',
-  padding: '0.65rem 0.75rem',
-  maxWidth: '36rem',
-  background: '#1a1410',
-  color: '#f4efe6',
-  fontFamily: 'system-ui, sans-serif',
-})
-
-let stack = css({
+let accountGrid = css({
   display: 'grid',
-  gap: '0.75rem',
-  maxWidth: '22rem',
+  gap: '3rem',
+  [wide]: {
+    gridTemplateColumns: 'repeat(2, minmax(0, 24rem))',
+    gap: '3.5rem',
+  },
 })
 
-let field = css({
-  display: 'grid',
-  gap: '0.35rem',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
+let hint = css({
+  color: color.mute,
+  fontStretch: '100%',
+  fontWeight: 400,
+  fontSize: '0.8125rem',
+  letterSpacing: 0,
+  textTransform: 'none',
 })
 
-let input = css({
-  padding: '0.65rem 0.7rem',
-  border: '1px solid #c4b8a8',
-  borderRadius: '2px',
-  background: '#fffdf8',
-  font: 'inherit',
-})
-
-let submit = css({
-  padding: '0.7rem 0.9rem',
-  border: 0,
-  borderRadius: '2px',
-  background: '#1a1410',
-  color: '#f4efe6',
-  fontFamily: 'system-ui, sans-serif',
-  fontWeight: 600,
-  cursor: 'pointer',
-})
-
-let list = css({
-  listStyle: 'none',
-  margin: 0,
-  padding: 0,
-  maxWidth: '48rem',
-})
-
-let rowStyle = css({
-  display: 'grid',
-  gap: '0.65rem',
-  padding: '0.85rem 0',
-  borderTop: '1px solid #d9cfc0',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
-})
-
-let actions = css({
+let scanPanel = css({
   display: 'flex',
   flexWrap: 'wrap',
-  gap: '0.5rem',
   alignItems: 'center',
+  gap: '0.75rem 1rem',
+  maxWidth: '52rem',
 })
 
-let action = css({
-  padding: '0.35rem 0.65rem',
-  border: '1px solid #1a1410',
-  borderRadius: '2px',
-  background: 'transparent',
-  font: 'inherit',
-  cursor: 'pointer',
+let scanLamp = css({
+  width: '0.6rem',
+  height: '0.6rem',
+  borderRadius: '50%',
+  background: color.rule,
+  flex: 'none',
 })
 
-let danger = css({
-  padding: '0.35rem 0.65rem',
-  border: '1px solid #6b2414',
-  borderRadius: '2px',
-  background: 'transparent',
-  color: '#6b2414',
-  font: 'inherit',
-  cursor: 'pointer',
+let scanLampOn = css({
+  background: color.red,
 })
 
-let inlineInput = css({
-  padding: '0.35rem 0.5rem',
-  border: '1px solid #c4b8a8',
-  borderRadius: '2px',
-  background: '#fffdf8',
-  font: 'inherit',
+let scanCopy = css({
+  flex: '1 1 14rem',
+  margin: 0,
+  fontVariantNumeric: 'tabular-nums',
 })
 
-let signOut = css({
-  marginTop: '2rem',
-  padding: '0.55rem 0.8rem',
-  border: '1px solid #1a1410',
-  borderRadius: '2px',
-  background: 'transparent',
-  fontFamily: 'system-ui, sans-serif',
-  cursor: 'pointer',
+let invitesLink = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  color: color.ink,
+  fontSize: '0.8125rem',
+  textDecoration: 'none',
+  '& svg': {
+    width: '1rem',
+    height: '1rem',
+  },
+  '&:hover': {
+    textDecoration: 'underline',
+  },
+})
+
+let membersLede = css({
+  marginBottom: '1.25rem',
+  fontSize: '0.9375rem',
+})
+
+let memberRow = css({
+  display: 'grid',
+  gap: '0.85rem 1.5rem',
+  padding: '1rem 0.25rem 1.1rem',
+  borderBottom: `1px solid ${color.rule}`,
+  [wide]: {
+    gridTemplateColumns: 'minmax(0, 1fr) auto',
+    alignItems: 'start',
+  },
+})
+
+let memberWho = css({
+  display: 'grid',
+  gap: '0.1rem',
+  minWidth: 0,
+})
+
+let memberName = css({
+  fontWeight: 650,
+  fontSize: '1.0625rem',
+})
+
+let tagRow = css({
+  display: 'flex',
+  gap: '0.35rem',
+  marginTop: '0.35rem',
+})
+
+let tag = css({
+  padding: '0.2rem 0.4rem',
+  border: `1px solid ${color.ink}`,
+  fontSize: '0.6875rem',
+})
+
+let tagAdmin = css({
+  background: color.ink,
+  color: color.paper,
+})
+
+let tagDisabled = css({
+  borderColor: color.redInk,
+  color: color.redInk,
+})
+
+let memberActions = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.4rem',
+  [wide]: {
+    justifyContent: 'end',
+  },
+})
+
+let tempForm = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'end',
+  gap: '0.5rem',
+  [wide]: {
+    gridColumn: '1 / -1',
+  },
+})
+
+let tempField = css({
+  flex: '0 1 16rem',
+  fontSize: '0.75rem',
+})
+
+let tempInput = css({
+  minHeight: '2.25rem',
+  padding: '0.35rem 0.6rem',
+  fontSize: '0.9375rem',
+})
+
+let signOutSection = css({
+  paddingTop: '1.5rem',
+  borderTop: `1px solid ${color.rule}`,
 })

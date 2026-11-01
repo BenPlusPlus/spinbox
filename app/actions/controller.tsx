@@ -43,7 +43,7 @@ import {
   startScan,
   type ScanAdapter,
 } from '../modules/library/index.ts'
-import { serveTrack } from '../modules/media/index.ts'
+import { serveArtwork, serveTrack } from '../modules/media/index.ts'
 import {
   addToQueue,
   clearAll,
@@ -242,6 +242,12 @@ export function createRootController({ config, database, scanAdapter }: AppDeps)
       },
       mediaTrack(context) {
         return serveTrack(database, config, context.request, {
+          trackId: context.params.trackId,
+          member: signedInMember(context),
+        })
+      },
+      mediaArtwork(context) {
+        return serveArtwork(database, config, context.request, {
           trackId: context.params.trackId,
           member: signedInMember(context),
         })
@@ -479,14 +485,22 @@ export function createLoginController({ config, database, passwordProvider }: Ap
           return guestRedirect(config, database)
         }
 
-        let member = await verifyCredentials(passwordProvider, context)
-        if (member == null) {
-          context.get(Session).flash('error', 'Email or password is incorrect')
-          return publicRedirect(config, routes.login.index.href())
-        }
+        try {
+          let member = await verifyCredentials(passwordProvider, context)
+          if (member == null) {
+            return context.render(<LoginPage error="Email or password is incorrect" />)
+          }
 
-        signInMember(context, member)
-        return passwordChangeRedirect(config, member) ?? publicRedirect(config, routes.home.href())
+          signInMember(context, member)
+          return passwordChangeRedirect(config, member) ?? publicRedirect(config, routes.home.href())
+        } catch (error) {
+          console.error(error)
+          let message =
+            error instanceof AuthError
+              ? error.message
+              : 'Sign in failed. Try again.'
+          return context.render(<LoginPage error={message} />)
+        }
       },
     },
   })
@@ -713,6 +727,7 @@ function toPlayerTrack(track: {
   artist: string
   album: string
   durationMs: number | null
+  hasArtwork: boolean
 }): PlayerTrack {
   return {
     id: track.id,
@@ -720,6 +735,7 @@ function toPlayerTrack(track: {
     artist: track.artist,
     album: track.album,
     durationMs: track.durationMs,
+    artworkHref: track.hasArtwork ? routes.mediaArtwork.href({ trackId: track.id }) : null,
   }
 }
 

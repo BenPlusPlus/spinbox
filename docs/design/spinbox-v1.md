@@ -506,7 +506,7 @@ These do **not** block starting implementation. They are recorded so implementer
 | --- | --- |
 | Scan run rich progress / error presentation | Ship coarse idle/running/last result; richer UX later |
 | Playlist bulk multi-select | Basic reorder/remove/create/rename/delete is enough for v1 |
-| Artwork discovery conventions | Not decided; browse may show placeholders until a later decision |
+| Artwork discovery conventions | Decided: during a Scan run each Track gets a folder image from its own directory (case-insensitive `cover` > `folder` > `front` > `album`, each `.jpg`/`.jpeg` > `.png` > `.webp`; regular non-symlink file jailed under `LIBRARY_ROOT`), else the picture embedded in its tags, else none. Served to signed-in Household members at `/media/artwork/:trackId` with `Cache-Control: private, max-age=86400`; Albums and Artists use their first Track with artwork |
 | Exact album/artist URL encoding | Implementer choice; keep stable once chosen |
 | Scheduled scan | Optional convenience; not required for first ship |
 | Remix 3 beta thrash | Pin `remix@next`; if beta becomes untenable, revisit ADR 0001 (likely RR framework mode) rather than silently mixing stacks |

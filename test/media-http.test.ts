@@ -208,6 +208,117 @@ describe('authenticated range streaming', () => {
     assert.doesNotMatch(await jailed.text(), /SECRET/)
   })
 
+  it('returns 401 for artwork without a session and 404 when a Track has no artwork', async () => {
+    let { app, database: db, libraryRoot } = await freshApp()
+    let cookie = await signInAdmin(app)
+    await writeLibraryFile(libraryRoot, 'Radiohead/OK Computer/01 - Airbag.mp3', Buffer.from('airbag'))
+    await scanNow(app, cookie)
+    let track = findTrackByPath(db, 'Radiohead/OK Computer/01 - Airbag.mp3')
+    assert.ok(track)
+    assert.equal(track.hasArtwork, false)
+    let href = routes.mediaArtwork.href({ trackId: track.id })
+    assert.equal(href, `/media/artwork/${track.id}`)
+
+    let signedOut = await app.fetch(new Request('http://evil.example' + href))
+    assert.equal(signedOut.status, 401)
+
+    let none = await app.fetch(
+      new Request('http://evil.example' + href, { headers: { Cookie: cookie } }),
+    )
+    assert.equal(none.status, 404)
+
+    let unknown = await app.fetch(
+      new Request('http://evil.example' + routes.mediaArtwork.href({ trackId: 'nope' }), {
+        headers: { Cookie: cookie },
+      }),
+    )
+    assert.equal(unknown.status, 404)
+  })
+
+  it('serves a folder image as album art with private caching', async () => {
+    let { app, database: db, libraryRoot } = await freshApp()
+    let cookie = await signInAdmin(app)
+    let image = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9])
+    await writeLibraryFile(libraryRoot, 'Radiohead/OK Computer/01 - Airbag.mp3', Buffer.from('airbag'))
+    await writeLibraryFile(libraryRoot, 'Radiohead/OK Computer/Cover.JPG', image)
+    await scanNow(app, cookie)
+    let track = findTrackByPath(db, 'Radiohead/OK Computer/01 - Airbag.mp3')
+    assert.ok(track)
+    assert.equal(track.hasArtwork, true)
+    let href = routes.mediaArtwork.href({ trackId: track.id })
+
+    let response = await app.fetch(
+      new Request('http://evil.example' + href, { headers: { Cookie: cookie } }),
+    )
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('Content-Type'), 'image/jpeg')
+    assert.equal(response.headers.get('Cache-Control'), 'private, max-age=86400')
+    assert.equal(Buffer.compare(Buffer.from(await response.arrayBuffer()), image), 0)
+    let etag = response.headers.get('ETag')
+    assert.ok(etag)
+
+    let notModified = await app.fetch(
+      new Request('http://evil.example' + href, {
+        headers: { Cookie: cookie, 'If-None-Match': etag },
+      }),
+    )
+    assert.equal(notModified.status, 304)
+
+    await fs.rm(path.join(libraryRoot, 'Radiohead', 'OK Computer', 'Cover.JPG'))
+    let missing = await app.fetch(
+      new Request('http://evil.example' + href, { headers: { Cookie: cookie } }),
+    )
+    assert.equal(missing.status, 404)
+  })
+
+  it('refuses artwork paths that escape the Library', async () => {
+    let { app, database: db, config } = await freshApp()
+    let cookie = await signInAdmin(app)
+    await fs.writeFile(path.join(config.libraryRoot, '..', 'secret.jpg'), Buffer.from('SECRET'))
+    insertTrack(db, { id: 'jailed-art', path: 'Artist/Album/01 - Song.mp3', mime: 'audio/mpeg' })
+    db.sqlite
+      .prepare(`UPDATE tracks SET artwork_kind = 'folder', artwork_path = ? WHERE id = ?`)
+      .run('../secret.jpg', 'jailed-art')
+
+    let jailed = await app.fetch(
+      new Request('http://evil.example' + routes.mediaArtwork.href({ trackId: 'jailed-art' }), {
+        headers: { Cookie: cookie },
+      }),
+    )
+    assert.equal(jailed.status, 404)
+    assert.doesNotMatch(await jailed.text(), /SECRET/)
+  })
+
+  it('serves an embedded tag picture with an ETag and 304 revalidation', async () => {
+    let { app, database: db, libraryRoot } = await freshApp()
+    let cookie = await signInAdmin(app)
+    let image = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02])
+    await writeLibraryFile(libraryRoot, 'Radiohead/Kid A/01 - Everything.mp3', id3WithPicture(image))
+    await scanNow(app, cookie)
+    let track = findTrackByPath(db, 'Radiohead/Kid A/01 - Everything.mp3')
+    assert.ok(track)
+    assert.equal(track.hasArtwork, true)
+    let href = routes.mediaArtwork.href({ trackId: track.id })
+
+    let response = await app.fetch(
+      new Request('http://evil.example' + href, { headers: { Cookie: cookie } }),
+    )
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('Content-Type'), 'image/png')
+    assert.equal(response.headers.get('Cache-Control'), 'private, max-age=86400')
+    assert.equal(Buffer.compare(Buffer.from(await response.arrayBuffer()), image), 0)
+    let etag = response.headers.get('ETag')
+    assert.ok(etag)
+    assert.ok(etag.includes(track.id))
+
+    let notModified = await app.fetch(
+      new Request('http://evil.example' + href, {
+        headers: { Cookie: cookie, 'If-None-Match': etag },
+      }),
+    )
+    assert.equal(notModified.status, 304)
+  })
+
   it('returns 503 when the Library mount is unhealthy and keeps the shell up', async () => {
     let { app, database: db, libraryRoot } = await freshApp()
     let cookie = await signInAdmin(app)
@@ -224,6 +335,14 @@ describe('authenticated range streaming', () => {
       }),
     )
     assert.equal(media.status, 503)
+
+    db.sqlite.prepare(`UPDATE tracks SET artwork_kind = 'embedded' WHERE id = ?`).run(track.id)
+    let artwork = await app.fetch(
+      new Request('http://evil.example' + routes.mediaArtwork.href({ trackId: track.id }), {
+        headers: { Cookie: cookie },
+      }),
+    )
+    assert.equal(artwork.status, 503)
 
     let home = await app.fetch(
       new Request('http://evil.example' + routes.home.href(), {
@@ -391,6 +510,29 @@ async function writeLibraryFile(
   let absolute = path.join(libraryRoot, ...relativePath.split('/'))
   await fs.mkdir(path.dirname(absolute), { recursive: true })
   await fs.writeFile(absolute, contents)
+}
+
+function id3WithPicture(image: Buffer): Buffer {
+  let payload = Buffer.concat([
+    Buffer.from([0]),
+    Buffer.from('image/png\0', 'latin1'),
+    Buffer.from([3]),
+    Buffer.from([0]),
+    image,
+  ])
+  let frame = Buffer.alloc(10 + payload.length)
+  frame.write('APIC', 0, 'ascii')
+  frame.writeUInt32BE(payload.length, 4)
+  payload.copy(frame, 10)
+  let header = Buffer.alloc(10)
+  header.write('ID3', 0, 'ascii')
+  header[3] = 3
+  let size = frame.length
+  header[6] = (size >>> 21) & 0x7f
+  header[7] = (size >>> 14) & 0x7f
+  header[8] = (size >>> 7) & 0x7f
+  header[9] = size & 0x7f
+  return Buffer.concat([header, frame])
 }
 
 function insertTrack(

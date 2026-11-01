@@ -1,9 +1,33 @@
 import type { Handle } from 'remix/component'
 import { css } from 'remix/component'
 
-import type { Invite } from '../modules/auth/index.ts'
+import type { Invite, InviteStatus } from '../modules/auth/index.ts'
 import { routes } from '../routes.ts'
 import { AppChrome, type ChromeState } from './app-chrome.tsx'
+import { icon } from './icons.tsx'
+import { alertMessage, backLink, pageHead } from './page-kit.tsx'
+import {
+  btnPrimary,
+  btnSecondary,
+  btnSmall,
+  caps,
+  color,
+  emptyNote,
+  field,
+  input,
+  listing,
+  meta,
+  section,
+  sectionTitle,
+  wide,
+} from './theme.ts'
+
+const statusLabel: Record<InviteStatus, string> = {
+  unused: 'Waiting',
+  accepted: 'Accepted',
+  revoked: 'Revoked',
+  expired: 'Expired',
+}
 
 export function InvitesPage(
   handle: Handle<{
@@ -19,146 +43,156 @@ export function InvitesPage(
     return (
       <AppChrome title="Invites · Spinbox" current="settings" chrome={chrome}>
         <main>
-          <h1 mix={heading}>Invites</h1>
-          <p mix={copy}>
-            Mint a single-use Invite. It expires after 7 days. Bind an email to lock who can accept,
-            or leave it blank for an open link.
-          </p>
-          {error ? <p mix={errorBox}>{error}</p> : null}
+          {backLink(routes.settings.index.href(), 'Settings')}
+          {pageHead({
+            title: 'Invites',
+            lede: 'Mint a single-use Invite. It expires after 7 days. Bind an email to lock who can accept, or leave it blank for an open link.',
+          })}
+          {alertMessage(error)}
+
           {mintedUrl ? (
-            <p mix={minted}>
-              Invite created. Share this accept URL before it expires: {mintedUrl}
-            </p>
+            <div mix={mintedPanel} role="status">
+              <p mix={mintedCopy}>
+                <strong>Invite created.</strong> Share this accept URL before it expires:
+              </p>
+              <code mix={mintedUrlText} aria-label="Invite accept URL">
+                {mintedUrl}
+              </code>
+            </div>
           ) : null}
+
           <form method="POST" action={routes.invites.action.href()} mix={mintForm}>
             <label mix={field}>
               Email (optional)
-              <input mix={input} type="email" name="email" autoComplete="off" />
+              <input mix={input} type="email" name="email" autoComplete="off" placeholder="name@example.com" />
             </label>
-            <button mix={submit} type="submit">
+            <button mix={btnPrimary} type="submit">
+              {icon('plus')}
               Mint Invite
             </button>
           </form>
-          <h2 mix={subheading}>Household Invites</h2>
-          {invites.length === 0 ? (
-            <p mix={copy}>No Invites yet.</p>
-          ) : (
-            <ul mix={list}>
-              {invites.map((invite) => (
-                <li mix={row}>
-                  <span>
-                    {invite.email ?? 'Open link'} · {invite.status} · expires {invite.expiresAt}
-                  </span>
-                  {invite.status === 'unused' ? (
-                    <form method="POST" action={routes.inviteRevoke.href({ id: invite.id })}>
-                      <button mix={revoke} type="submit">
-                        Revoke
-                      </button>
-                    </form>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
+
+          <section mix={section}>
+            <h2 mix={sectionTitle}>Household Invites</h2>
+            {invites.length === 0 ? (
+              <p mix={emptyNote}>No Invites yet.</p>
+            ) : (
+              <ul mix={listing}>
+                {invites.map((invite) => (
+                  <li mix={row} key={invite.id}>
+                    <span mix={[caps, tag, invite.status === 'unused' ? tagLive : null]}>
+                      {statusLabel[invite.status]}
+                    </span>
+                    <span mix={who}>
+                      <strong mix={whoName}>{invite.email ?? 'Open link'}</strong>
+                      <span mix={meta}>expires {formatDate(invite.expiresAt)}</span>
+                    </span>
+                    {invite.status === 'unused' ? (
+                      <form method="POST" action={routes.inviteRevoke.href({ id: invite.id })}>
+                        <button mix={[btnSecondary, btnSmall]} type="submit">
+                          Revoke
+                        </button>
+                      </form>
+                    ) : (
+                      <span></span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </main>
       </AppChrome>
     )
   }
 }
 
-let heading = css({
-  margin: '0 0 0.5rem',
-  fontSize: '2rem',
-  fontFamily: 'Fraunces, Georgia, serif',
-})
+function formatDate(iso: string): string {
+  let date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return iso
+  }
+  return date.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  })
+}
 
-let subheading = css({
-  margin: '2rem 0 0.75rem',
-  fontSize: '1.2rem',
-})
-
-let copy = css({
-  margin: '0 0 1.25rem',
-  maxWidth: '36rem',
-  lineHeight: 1.5,
-  color: '#4a4038',
-})
-
-let minted = css({
-  margin: '0 0 1.25rem',
-  padding: '0.75rem 0.85rem',
+let mintedPanel = css({
+  display: 'grid',
+  gap: '0.5rem',
+  margin: '0 0 2rem',
+  padding: '1rem 1.1rem 1.1rem',
   maxWidth: '40rem',
-  background: '#1a1410',
-  color: '#f4efe6',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
-  wordBreak: 'break-all',
+  background: color.ink,
+  color: color.paper,
 })
 
-let errorBox = css({
-  margin: '0 0 1rem',
-  padding: '0.65rem 0.75rem',
-  maxWidth: '36rem',
-  background: '#f3d6cc',
-  color: '#6b2414',
-  fontFamily: 'system-ui, sans-serif',
+let mintedCopy = css({
+  margin: 0,
+  '& strong': {
+    fontWeight: 750,
+  },
+})
+
+let mintedUrlText = css({
+  display: 'block',
+  padding: '0.7rem 0.85rem',
+  background: color.sheet,
+  color: color.ink,
+  fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+  fontSize: '0.875rem',
+  lineHeight: 1.45,
+  overflowWrap: 'anywhere',
+  userSelect: 'all',
 })
 
 let mintForm = css({
   display: 'grid',
   gap: '0.75rem',
-  maxWidth: '22rem',
-})
-
-let field = css({
-  display: 'grid',
-  gap: '0.35rem',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
-})
-
-let input = css({
-  padding: '0.65rem 0.7rem',
-  border: '1px solid #c4b8a8',
-  borderRadius: '2px',
-  background: '#fffdf8',
-  font: 'inherit',
-})
-
-let submit = css({
-  padding: '0.7rem 0.9rem',
-  border: 0,
-  borderRadius: '2px',
-  background: '#1a1410',
-  color: '#f4efe6',
-  fontFamily: 'system-ui, sans-serif',
-  fontWeight: 600,
-  cursor: 'pointer',
-})
-
-let list = css({
-  listStyle: 'none',
-  margin: 0,
-  padding: 0,
-  maxWidth: '40rem',
+  maxWidth: '36rem',
+  [wide]: {
+    gridTemplateColumns: 'minmax(0, 1fr) auto',
+    alignItems: 'end',
+  },
 })
 
 let row = css({
-  display: 'flex',
-  justifyContent: 'space-between',
+  display: 'grid',
+  gridTemplateColumns: '6.5rem minmax(0, 1fr) auto',
   alignItems: 'center',
-  gap: '1rem',
-  padding: '0.7rem 0',
-  borderTop: '1px solid #d9cfc0',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: '0.95rem',
+  gap: '0 1rem',
+  minHeight: '3.5rem',
+  padding: '0.5rem 0.25rem',
+  borderBottom: `1px solid ${color.rule}`,
 })
 
-let revoke = css({
-  padding: '0.35rem 0.65rem',
-  border: '1px solid #1a1410',
-  borderRadius: '2px',
-  background: 'transparent',
-  font: 'inherit',
-  cursor: 'pointer',
+let tag = css({
+  justifySelf: 'start',
+  padding: '0.2rem 0.4rem',
+  border: `1px solid ${color.rule}`,
+  color: color.mute,
+  fontSize: '0.6875rem',
+})
+
+let tagLive = css({
+  borderColor: color.ink,
+  color: color.ink,
+})
+
+let who = css({
+  display: 'grid',
+  minWidth: 0,
+})
+
+let whoName = css({
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontWeight: 600,
 })

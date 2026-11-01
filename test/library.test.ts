@@ -19,6 +19,7 @@ import {
   artistGroupingKey,
   findAlbumByKey,
   findArtistByKey,
+  findTrackArtwork,
   findTrackById,
   findTrackByPath,
   getScanStatus,
@@ -39,6 +40,8 @@ const FIXTURE_LIBRARY = path.join(
   'fixtures',
   'library',
 )
+
+const TINY_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9])
 
 describe('library membership gates', () => {
   it('accepts an allowlisted audio file under Artist/Album', () => {
@@ -473,6 +476,107 @@ describe('Scan run', () => {
       'Various Artists/Now 1/01 - Guest Hit.m4a',
     ])
   })
+
+  it('prefers a folder image over an embedded picture and matches names case-insensitively', async () => {
+    let { config, database: db, admin, libraryRoot } = await freshLibrary()
+    await writeTree(libraryRoot, {
+      'Radiohead/OK Computer/01 - Airbag.mp3': taggedMp3({
+        title: 'Airbag',
+        artist: 'Radiohead',
+        album: 'OK Computer',
+        picture: TINY_JPEG,
+      }),
+      'Radiohead/OK Computer/Front.png': TINY_JPEG,
+      'Radiohead/OK Computer/COVER.JPG': TINY_JPEG,
+      'Radiohead/Kid A/01 - Everything.mp3': taggedMp3({
+        title: 'Everything',
+        artist: 'Radiohead',
+        album: 'Kid A',
+        picture: TINY_JPEG,
+      }),
+      'Radiohead/Amnesiac/01 - Packt.mp3': '',
+      'Radiohead/Amnesiac/cover.jpg': '',
+      'Radiohead/Amnesiac/notes.jpg': TINY_JPEG,
+    })
+
+    await runScanToIdle(db, config, admin)
+
+    let airbag = findTrackByPath(db, 'Radiohead/OK Computer/01 - Airbag.mp3')
+    assert.ok(airbag)
+    assert.equal(airbag.hasArtwork, true)
+    assert.deepEqual(
+      { kind: findTrackArtwork(db, airbag.id)?.kind, path: findTrackArtwork(db, airbag.id)?.path },
+      { kind: 'folder', path: 'Radiohead/OK Computer/COVER.JPG' },
+    )
+
+    let everything = findTrackByPath(db, 'Radiohead/Kid A/01 - Everything.mp3')
+    assert.ok(everything)
+    assert.equal(everything.hasArtwork, true)
+    assert.equal(findTrackArtwork(db, everything.id)?.kind, 'embedded')
+    assert.equal(findTrackArtwork(db, everything.id)?.path, null)
+
+    let packt = findTrackByPath(db, 'Radiohead/Amnesiac/01 - Packt.mp3')
+    assert.ok(packt)
+    assert.equal(packt.hasArtwork, false)
+    assert.equal(findTrackArtwork(db, packt.id), null)
+  })
+
+  it('picks up a folder image added beside an unchanged Track on the next Scan run', async () => {
+    let { config, database: db, admin, libraryRoot } = await freshLibrary()
+    await writeTree(libraryRoot, { 'Artist/Album/01 - Song.mp3': '' })
+    await runScanToIdle(db, config, admin)
+    assert.equal(findTrackByPath(db, 'Artist/Album/01 - Song.mp3')?.hasArtwork, false)
+
+    await writeTree(libraryRoot, { 'Artist/Album/folder.webp': TINY_JPEG })
+    await runScanToIdle(db, config, admin)
+
+    let track = findTrackByPath(db, 'Artist/Album/01 - Song.mp3')
+    assert.ok(track)
+    assert.equal(track.hasArtwork, true)
+    assert.equal(findTrackArtwork(db, track.id)?.path, 'Artist/Album/folder.webp')
+    assert.equal(getScanStatus(db).lastResult?.tracksUpserted, 0)
+  })
+
+  it('checks artwork for Tracks indexed before artwork discovery existed', async () => {
+    let { config, database: db, admin, libraryRoot } = await freshLibrary()
+    await writeTree(libraryRoot, {
+      'Artist/Album/01 - Song.mp3': taggedMp3({
+        title: 'Song',
+        artist: 'Artist',
+        album: 'Album',
+        picture: TINY_JPEG,
+      }),
+    })
+    await runScanToIdle(db, config, admin)
+    db.sqlite.exec(
+      'UPDATE tracks SET artwork_kind = NULL, artwork_path = NULL, artwork_checked = 0',
+    )
+    assert.equal(findTrackByPath(db, 'Artist/Album/01 - Song.mp3')?.hasArtwork, false)
+
+    await runScanToIdle(db, config, admin)
+
+    let track = findTrackByPath(db, 'Artist/Album/01 - Song.mp3')
+    assert.ok(track)
+    assert.equal(track.hasArtwork, true)
+    assert.equal(findTrackArtwork(db, track.id)?.kind, 'embedded')
+  })
+
+  it('ignores a symlinked folder image', async (t) => {
+    let { config, database: db, admin, libraryRoot } = await freshLibrary()
+    await writeTree(libraryRoot, { 'Artist/Album/01 - Song.mp3': '' })
+    let outside = path.join(libraryRoot, '..', 'outside.jpg')
+    await fs.writeFile(outside, TINY_JPEG)
+    try {
+      await fs.symlink(outside, path.join(libraryRoot, 'Artist', 'Album', 'cover.jpg'), 'file')
+    } catch {
+      t.skip('symlinks are not available on this machine')
+      return
+    }
+
+    await runScanToIdle(db, config, admin)
+
+    assert.equal(findTrackByPath(db, 'Artist/Album/01 - Song.mp3')?.hasArtwork, false)
+  })
 })
 
 describe('Library browse groupings', () => {
@@ -617,6 +721,73 @@ describe('Library browse groupings', () => {
       ['Now 1'],
     )
     assert.equal(findArtistByKey(db, artistGroupingKey('Missing')), null)
+  })
+
+  it('points Album and Artist groupings at the first Track with artwork', async () => {
+    let db = await freshIndex()
+    insertIndexedTrack(db, {
+      id: 'flesh',
+      path: 'Pink Floyd/The Wall/Disc 1/01 - In the Flesh.flac',
+      title: 'In the Flesh',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 1,
+      trackNumber: 1,
+    })
+    insertIndexedTrack(db, {
+      id: 'hey-you',
+      path: 'Pink Floyd/The Wall/Disc 2/01 - Hey You.flac',
+      title: 'Hey You',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 2,
+      trackNumber: 1,
+      artworkKind: 'embedded',
+    })
+    insertIndexedTrack(db, {
+      id: 'mother',
+      path: 'Pink Floyd/The Wall/Disc 2/02 - Mother.flac',
+      title: 'Mother',
+      artist: 'Pink Floyd',
+      album: 'The Wall',
+      albumArtist: 'Pink Floyd',
+      discNumber: 2,
+      trackNumber: 2,
+      artworkKind: 'folder',
+    })
+    insertIndexedTrack(db, {
+      id: 'airbag',
+      path: 'Radiohead/OK Computer/01 - Airbag.mp3',
+      title: 'Airbag',
+      artist: 'Radiohead',
+      album: 'OK Computer',
+      albumArtist: 'Radiohead',
+    })
+    insertIndexedTrack(db, {
+      id: 'guest',
+      path: 'Various Artists/Now 1/01 - Guest Hit.m4a',
+      title: 'Guest Hit',
+      artist: 'Blur',
+      album: 'Now 1',
+      albumArtist: 'Various Artists',
+      artworkKind: 'folder',
+    })
+
+    let wall = findAlbumByKey(db, albumGroupingKey('Pink Floyd', 'The Wall'))
+    assert.equal(wall?.artworkTrackId, 'hey-you')
+    assert.deepEqual(
+      listAlbums(db).map((album) => [album.album, album.artworkTrackId]),
+      [
+        ['The Wall', 'hey-you'],
+        ['OK Computer', null],
+        ['Now 1', 'guest'],
+      ],
+    )
+    assert.equal(findArtistByKey(db, artistGroupingKey('Pink Floyd'))?.artworkTrackId, 'hey-you')
+    assert.equal(findArtistByKey(db, artistGroupingKey('Radiohead'))?.artworkTrackId, null)
+    assert.equal(findArtistByKey(db, artistGroupingKey('Blur'))?.artworkTrackId, 'guest')
   })
 })
 
@@ -811,6 +982,7 @@ function taggedMp3(tags: {
   artist: string
   album: string
   albumArtist?: string
+  picture?: Uint8Array
 }): Buffer {
   let frames = [
     id3TextFrame('TIT2', tags.title),
@@ -819,6 +991,9 @@ function taggedMp3(tags: {
   ]
   if (tags.albumArtist) {
     frames.push(id3TextFrame('TPE2', tags.albumArtist))
+  }
+  if (tags.picture) {
+    frames.push(id3PictureFrame(tags.picture))
   }
   let body = Buffer.concat(frames)
   let header = Buffer.alloc(10)
@@ -843,6 +1018,21 @@ function id3TextFrame(id: string, value: string): Buffer {
   return frame
 }
 
+function id3PictureFrame(data: Uint8Array): Buffer {
+  let payload = Buffer.concat([
+    Buffer.from([0]),
+    Buffer.from('image/jpeg\0', 'latin1'),
+    Buffer.from([3]),
+    Buffer.from([0]),
+    Buffer.from(data),
+  ])
+  let frame = Buffer.alloc(10 + payload.length)
+  frame.write('APIC', 0, 'ascii')
+  frame.writeUInt32BE(payload.length, 4)
+  payload.copy(frame, 10)
+  return frame
+}
+
 function insertIndexedTrack(
   database: AppDatabase,
   input: {
@@ -854,14 +1044,15 @@ function insertIndexedTrack(
     albumArtist: string
     discNumber?: number | null
     trackNumber?: number | null
+    artworkKind?: 'folder' | 'embedded' | null
   },
 ) {
   database.sqlite
     .prepare(
       `INSERT INTO tracks (
          id, path, title, artist, album, album_artist, disc_number, track_number,
-         duration_ms, mime, mtime_ms, size, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         duration_ms, mime, mtime_ms, size, updated_at, artwork_kind
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.id,
@@ -877,5 +1068,6 @@ function insertIndexedTrack(
       Date.now(),
       1,
       new Date().toISOString(),
+      input.artworkKind ?? null,
     )
 }

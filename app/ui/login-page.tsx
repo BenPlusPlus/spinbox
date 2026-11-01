@@ -13,7 +13,12 @@ export function LoginPage(handle: Handle<{ error?: string }>) {
         lead="Household members sign in with email and password."
         error={error}
       >
-        <form method="POST" action={routes.login.action.href()} mix={fieldStack}>
+        <form
+          method="POST"
+          action={routes.login.action.href()}
+          mix={fieldStack}
+          data-rmx-document
+        >
           <label mix={field}>
             Email
             <input mix={input} type="email" name="email" autoComplete="username" required />
