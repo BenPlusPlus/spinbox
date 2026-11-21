@@ -15,7 +15,7 @@
     "node": ">=24.3.0"
   },
   "dependencies": {
-    "music-metadata": "12.5.0",
+    "music-metadata": "12.7.0",
     "remix": "3.0.0-rc.5"
   },
   "devDependencies": {
