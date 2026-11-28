@@ -186,8 +186,8 @@ importers:
   .:
     dependencies:
       music-metadata:
-        specifier: 12.8.4
-        version: 12.8.4(supports-color@7.2.0)
+        specifier: 13.0.0
+        version: 13.0.0(supports-color@7.2.0)
       remix:
         specifier: 3.0.0-rc.5
         version: 3.0.0-rc.5(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
@@ -1354,8 +1354,8 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  music-metadata@12.8.4:
-    resolution: {integrity: sha512-43wk2UifiKkkgE9pgxVOqJYA5OH6st+Ey0mMY+6l/XXLBSkULRjUh8LeI2qmg9mifqNfvrtMDdSvkncJAsyg6A==}
+  music-metadata@13.0.0:
+    resolution: {integrity: sha512-S/DmNmVwBS7KRCqGWnLrdgXRWRVA4q4V5qHZJSm9llBgETqi0fE2z4XFSiuana4zOvrGaGOaWZOXSc3OHO39gA==}
     engines: {node: '>=22'}
 
   oxc-minify@0.121.0:
@@ -2326,7 +2326,7 @@ snapshots:
 
   ms@2.1.3: {}
 
-  music-metadata@12.8.4(supports-color@7.2.0):
+  music-metadata@13.0.0(supports-color@7.2.0):
     dependencies:
       '@borewit/text-codec': 0.2.3
       '@tokenizer/token': 0.3.0
